@@ -7,4 +7,13 @@
     <RootNamespace>PROYECTO_FINAL</RootNamespace>
   </PropertyGroup>
 
+  <!-- La solucion Clean Architecture vive en Rescauta/ y se compila por separado
+       (Rescauta.sln). Sin estas exclusiones los globs por defecto arrastran sus
+       .cs y este proyecto MVC falla con CS8802 / CS0579. -->
+  <ItemGroup>
+    <Compile Remove="Rescauta/**" />
+    <None Remove="Rescauta/**" />
+    <EmbeddedResource Remove="Rescauta/**" />
+  </ItemGroup>
+
 </Project>

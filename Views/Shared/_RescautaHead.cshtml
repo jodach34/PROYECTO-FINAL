@@ -1,0 +1,36 @@
+@*
+    Cabecera comun de las 3 pantallas de Rescauta.
+    Tailwind via Play CDN (v3) + paleta de marca centralizada.
+    Mockerup estatico: sin bundle, sin Tailwind CLI.
+*@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Rescauta</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand:     '#2D7A41',
+                        'brand-dk':'#215A30',
+                        'brand-lt':'#EAF3EC',
+                        canvas:    '#F8F9FA',
+                        ink:       '#1F2937',
+                        muted:     '#6B7280',
+                        ok:        '#28A745',
+                        alerta:    '#FD7E14',
+                        critico:   '#DC3545'
+                    },
+                    boxShadow: {
+                        card: '0 1px 2px rgba(31,41,55,.04), 0 4px 16px rgba(31,41,55,.06)'
+                    }
+                }
+            }
+        };
+    </script>
+</head>
