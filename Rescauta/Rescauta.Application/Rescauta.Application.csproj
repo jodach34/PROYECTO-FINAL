@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    CAPA 2 - APPLICATION (casos de uso / orquestacion)
+    Reglas de dependencia:
+      * Referencia SOLO a Rescauta.Domain.
+      * NO referencia Rescauta.Infrastructure ni Rescauta.Api (la inversion de dependencias
+        se resuelve con interfaces: define IAppDbContext / ICacheService AQUI y
+        las implementaciones viven en Infrastructure).
+      * EF Core aparece unicamente por los tipos DbSet<T> / IQueryable<T> que exposed
+        la abstraccion IAppDbContext. Si el equipo quiere la copia estricta (cero EF Core),
+        reemplazar IAppDbContext por interfaces de repositorio por agregado.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Rescauta.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rescauta.Domain\Rescauta.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="MediatR" />
+  </ItemGroup>
+
+</Project>

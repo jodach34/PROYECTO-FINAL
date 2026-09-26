@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    CAPA 3 - INFRASTRUCTURE (adaptadores)
+    Reglas de dependencia:
+      * Referencia a Rescauta.Domain y a Rescauta.Application.
+      * Es la UNICA capa que conoce EF Core, Redis, SignalR y los proveedores de BD.
+      * Registra sus implementaciones en DI desde Infrastructure/DependencyInjection.cs
+        (el composition root real es Rescauta.Api/Program.cs).
+  -->
+  <PropertyGroup>
+    <RootNamespace>Rescauta.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rescauta.Application\Rescauta.Application.csproj" />
+    <ProjectReference Include="..\Rescauta.Domain\Rescauta.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      SignalR (Hub, IHubContext, MapHub) vive en el shared framework de ASP.NET Core.
+      Un class library normal NO lo ve: esta referencia es lo que habilita
+      Infrastructure/Hubs/RescautaHub.cs.
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>
