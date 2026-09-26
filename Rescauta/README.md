@@ -13,6 +13,35 @@ paralelo sobre los módulos **Mapas**, **Kardex/Inventario** y **Donaciones** si
 
 ## 1. Puesta en marcha (5 minutos)
 
+### Cómo ejecutarlo (importante)
+
+`dotnet run` a secas **no funciona** en este repositorio, y es lo esperado:
+
+- desde la raíz del repo, `dotnet run` arranca el proyecto MVC viejo (`PROYECTO-FINAL.csproj`),
+  no Rescauta;
+- desde `Rescauta/`, `dotnet run` avisa que hay una solución y no un proyecto.
+
+El comando correcto, desde la raíz del repo:
+
+```bash
+dotnet run --project Rescauta\Rescauta.Api          # Windows
+dotnet run --project Rescauta/Rescauta.Api          # Linux / macOS
+```
+
+Equivalentes:
+
+```bash
+cd Rescauta && dotnet run --project Rescauta.Api     # o esto
+```
+
+Y para toda la solución:
+
+```bash
+dotnet build Rescauta\Rescauta.sln                   # compilar
+```
+
+### Levantar el resto
+
 ```bash
 git clone <url-del-repo>
 cd Rescauta
@@ -23,9 +52,6 @@ docker compose up -d
 # Compilar
 dotnet restore
 dotnet build
-
-# Levantar la API
-dotnet run --project Rescauta.Api
 ```
 
 Verificar que todo quedó cableado:
@@ -43,16 +69,17 @@ Verificar que todo quedó cableado:
 
 ### Si `dotnet run` falla con "You must install or update .NET"
 
-El SDK 10 compila bien `net8.0`, pero **para ejecutar** hace falta el runtime
-ASP.NET Core 8 (el de .NET Core 8 solo no alcanza):
+Ocurre cuando la máquina tiene el runtime de .NET Core pero **no** el de ASP.NET Core 8.
+`dotnet --list-runtimes | findstr AspNetCore` debe listar `8.x`.
 
-```bash
-dotnet --list-runtimes | findstr AspNetCore
-```
+Dos salidas:
 
-Si no aparece `Microsoft.AspNetCore.App 8.x`, instalar el ASP.NET Core Runtime 8.
-Alternativa: levantar el proyecto con `RollForward` o cambiar el TFM a `net10.0` en
-`Directory.Build.props` (único lugar donde está el `TargetFramework`).
+- **Instalar el ASP.NET Core Runtime 8** (o el SDK 8, que lo incluye). Es la opción
+  recomendada: es lo que van a necesitar los 3 devs.
+- **Dejarlo como está**: la solución trae `RollForward=LatestMajor` en
+  `Directory.Build.props`, que permite ejecutar la app apuntando a `net8.0` sobre un
+  runtime más nuevo. Es una concesión para desarrollo local. En producción hay que
+  instalar el runtime 8 y cambiar esa línea por `<RollForward>Major</RollForward>`.
 
 ---
 

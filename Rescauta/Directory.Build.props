@@ -14,6 +14,18 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <!--
+      La API compila para net8.0 (LTS) pero admite ejecutar sobre un runtime mas nuevo
+      si la maquina no tiene instalado el de 8. Sin esto, "dotnet run" falla con
+      "You must install or update .NET to run this application".
+
+      Es una concession para desarrollo local. En produccion se debe instalar el
+      runtime de .NET 8 y quitar esta linea (o fijarla en Major).
+    -->
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <!-- Credenciales de conexión SOLO en user-secrets / variables de entorno. -->
     <UserSecretsId Condition="'$(UserSecretsId)' == ''">rescauta-$(MSBuildProjectName)</UserSecretsId>
   </PropertyGroup>

@@ -7,4 +7,19 @@
     <RootNamespace>PROYECTO_FINAL</RootNamespace>
   </PropertyGroup>
 
+  <!--
+    Este proyecto usa los globs por defecto (**/*.cs), que recorren TODO el repositorio.
+    Sin estas exclusiones compila tambien el arbol completo de Rescauta/ y falla con:
+      CS8802 - Solo una unidad de compilacion puede tener instrucciones de nivel superior
+               (Rescauta.Api/Program.cs)
+      CS0579 - Atributo ... duplicado
+               (los obj/ anidados de Rescauta generan AssemblyInfo propios)
+    Es la razon por la que "dotnet run" en la raiz del repo rompia al proyecto MVC.
+  -->
+  <ItemGroup>
+    <Compile Remove="Rescauta/**" />
+    <None Remove="Rescauta/**" />
+    <EmbeddedResource Remove="Rescauta/**" />
+  </ItemGroup>
+
 </Project>
