@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\JOEL CONDOR\\Desktop\\PROGRAMACION 1\\PROYECTO-FINAL\\PROYECTO-FINAL.csproj",
-      "projectName": "PROYECTO-FINAL",
-      "projectPath": "C:\\Users\\JOEL CONDOR\\Desktop\\PROGRAMACION 1\\PROYECTO-FINAL\\PROYECTO-FINAL.csproj",
+      "projectUniqueName": "c:\\Users\\JOEL CONDOR\\Desktop\\PROGRAMACION 1\\PROYECTO-FINAL\\RescautaApp.csproj",
+      "projectName": "RescautaApp",
+      "projectPath": "c:\\Users\\JOEL CONDOR\\Desktop\\PROGRAMACION 1\\PROYECTO-FINAL\\RescautaApp.csproj",
       "packagesPath": "C:\\Users\\JOEL CONDOR\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\JOEL CONDOR\\Desktop\\PROGRAMACION 1\\PROYECTO-FINAL\\obj\\",
+      "outputPath": "c:\\Users\\JOEL CONDOR\\Desktop\\PROGRAMACION 1\\PROYECTO-FINAL\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\JOEL CONDOR\\AppData\\Roaming\\NuGet\\NuGet.Config"

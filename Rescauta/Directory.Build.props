@@ -5,7 +5,13 @@
     Cualquiera de los 3 devs que agregue un proyecto nuevo lo hereda automáticamente.
   -->
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <!--
+      net10.0 porque es el unico runtime instalado en el equipo. Con net8.0 el proyecto
+      compilaba, pero `dotnet run` fallaba con "You must install or update .NET" porque no
+      hay runtime 8.x. Los paquetes de EF Core 8 siguen sirviendo: el proveedor SQLite y
+      Npgsql publican assets net8.0, que .NET 10 consume sin problema.
+    -->
+    <TargetFramework>net10.0</TargetFramework>
     <LangVersion>12.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
