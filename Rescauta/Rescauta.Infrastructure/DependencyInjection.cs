@@ -4,8 +4,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Rescauta.Application.Interfaces;
 using Rescauta.Application.Interfaces.Caching;
+using Rescauta.Application.Interfaces.Messaging;
 using Rescauta.Application.Interfaces.RealTime;
 using Rescauta.Infrastructure.Caching;
+using Rescauta.Infrastructure.Messaging;
 using Rescauta.Infrastructure.Options;
 using Rescauta.Infrastructure.Persistence;
 using Rescauta.Infrastructure.Persistence.Interceptors;
@@ -42,10 +44,39 @@ public static class DependencyInjection
         services.AddScoped<IRescautaNotifier, RescautaRealtimeNotifier>();
         services.TryAddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
 
+        AddRabbitMq(services, configuration);
+
         services.AddDbContext<AppDbContext>((provider, options) =>
             ConfigureDatabase(options, configuration, provider));
 
         return services;
+    }
+
+    /// <summary>
+    /// Registra la mensajeria (RabbitMQ / CloudAMQP) si "RabbitMq:Enabled" lo permite.
+    /// Con Enabled en false se registra NullEventBus: IEventBus siempre resuelve, de modo que
+    /// los modulos pueden publicar sin saber si el broker esta disponible, y la API arranca
+    /// sin broker levantado.
+    /// </summary>
+    private static void AddRabbitMq(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<RabbitMqOptions>()
+            .Bind(configuration.GetSection(RabbitMqOptions.SectionName));
+
+        var settings = configuration.GetSection(RabbitMqOptions.SectionName).Get<RabbitMqOptions>()
+                       ?? new RabbitMqOptions();
+
+        if (!settings.Enabled)
+        {
+            services.TryAddScoped<IEventBus, NullEventBus>();
+
+            return;
+        }
+
+        // Singleton + IAsyncDisposable: el contenedor lo cierra solo al apagar la app.
+        // El bus es scoped porque envelopa el evento con datos de la peticion en curso.
+        services.AddSingleton<RabbitMqConnection>();
+        services.TryAddScoped<IEventBus, RabbitMqEventBus>();
     }
 
     private static void ConfigureDatabase(

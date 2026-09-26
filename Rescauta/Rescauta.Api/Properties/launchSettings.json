@@ -11,8 +11,7 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Database__Provider": "Sqlite",
         "Database__ConnectionString": "Data Source=rescauta.dev.db",
-        "Database__MigrateOnStartup": "true",
-        "ConnectionStrings__Redis": "localhost:6379"
+        "Database__MigrateOnStartup": "true"
       }
     },
     "https": {
@@ -25,8 +24,7 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Database__Provider": "Sqlite",
         "Database__ConnectionString": "Data Source=rescauta.dev.db",
-        "Database__MigrateOnStartup": "true",
-        "ConnectionStrings__Redis": "localhost:6379"
+        "Database__MigrateOnStartup": "true"
       }
     }
   }

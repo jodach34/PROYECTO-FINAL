@@ -12,6 +12,7 @@ using Rescauta.Application.Interfaces.RealTime;
 using Rescauta.Infrastructure;
 using Rescauta.Infrastructure.Extensions;
 using Rescauta.Infrastructure.Hubs;
+using Rescauta.Infrastructure.Messaging;
 using Rescauta.Infrastructure.Options;
 using Rescauta.Infrastructure.Persistence;
 using Serilog;
@@ -40,10 +41,15 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) => loggerConfig
 
 // -----------------------------------------------------------------------------
 // 1. Configuracion tipada de las secciones propias de infraestructura.
+//    RabbitMq:Enabled en false deja la API sin mensajeria (ver AddInfrastructure).
 // -----------------------------------------------------------------------------
 builder.Services
     .AddOptions<DatabaseOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName));
+
+builder.Services
+    .AddOptions<RabbitMqOptions>()
+    .Bind(builder.Configuration.GetSection(RabbitMqOptions.SectionName));
 
 // -----------------------------------------------------------------------------
 // 2. Capa Application: casos de uso (MediatR), validacion (FluentValidation) y
@@ -70,6 +76,10 @@ if (string.IsNullOrWhiteSpace(redisConnection))
     Log.Warning(
         "No se encontro ConnectionStrings:Redis. La API arranca SIN cache distribuida. " +
         "Levantar Redis con 'docker compose up -d' o definir la cadena de conexion.");
+}
+else
+{
+    redisConnection = NormalizeRedisConnectionString(redisConnection);
 }
 
 builder.Services.AddStackExchangeRedisCache(options =>
@@ -143,9 +153,18 @@ builder.Services.AddResponseCompression();
 builder.Services.AddScoped<DatabaseHealthCheck>();
 builder.Services.AddScoped<RedisHealthCheck>();
 
-builder.Services.AddHealthChecks()
+var healthChecksBuilder = builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", HealthStatus.Unhealthy, tags: new[] { "database" })
     .AddCheck<RedisHealthCheck>("cache", HealthStatus.Degraded, tags: new[] { "cache" });
+
+// El check de AMQP se registra solo si la mensajeria esta habilitada: depende de
+// RabbitMqConnection, que AddInfrastructure no registra cuando "RabbitMq:Enabled" es false.
+// Registrarlo siempre haria fallar la resolucion de /health.
+if (builder.Configuration.GetValue("RabbitMq:Enabled", true))
+{
+    builder.Services.AddScoped<RabbitMqHealthCheck>();
+    healthChecksBuilder.AddCheck<RabbitMqHealthCheck>("messaging", HealthStatus.Degraded, tags: new[] { "messaging" });
+}
 
 // -----------------------------------------------------------------------------
 // 8. CORS abierto para desarrollo.
@@ -217,6 +236,68 @@ if (app.Environment.IsDevelopment())
 Log.Information("Rescauta API iniciada. Entorno: {Environment} | Hub: {HubRoute}", app.Environment.EnvironmentName, hubRoute);
 
 await app.RunAsync();
+
+// -----------------------------------------------------------------------------
+// Helper de configuracion de Redis.
+// -----------------------------------------------------------------------------
+// Los paneles de Redis Cloud entregan la conexion como URI "redis://user:pass@host:puerto".
+// PROBLEMA: ConfigurationOptions.Parse() NO entiende ese esquema y NO lanza excepcion:
+// se traga la URI entera como nombre de host, deja el puerto en 0, la contrasena vacia y
+// ssl en false. Como AbortOnConnectFail esta en false, la app arrancaba igual, sin cache y
+// sin error visible. Esta funcion convierte la URI a sintaxis nativa de StackExchange.Redis
+// para que ambos formatos sirvan:
+//     redis://  -> ssl=false (puerto 6379 por defecto)
+//     rediss:// -> ssl=true  (puerto 6380 por defecto, o el que venga en la URI)
+// Un valor que ya venga en sintaxis nativa ("host:6379,user=..,password=..") se devuelve
+// sin tocar, asi que este helper es seguro de aplicar siempre.
+static string NormalizeRedisConnectionString(string value)
+{
+    if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+        uri.Scheme is not ("redis" or "rediss"))
+    {
+        return value;
+    }
+
+    var useSsl = uri.Scheme == "rediss";
+    var port = uri.Port > 0 ? uri.Port : (useSsl ? 6380 : 6379);
+
+    // UserInfo viene URL-encoded y con "usuario:contrasena" en un solo string.
+    var user = string.Empty;
+    var password = string.Empty;
+    var separatorIndex = uri.UserInfo.IndexOf(':');
+
+    if (separatorIndex >= 0)
+    {
+        user = Uri.UnescapeDataString(uri.UserInfo[..separatorIndex]);
+        password = Uri.UnescapeDataString(uri.UserInfo[(separatorIndex + 1)..]);
+    }
+    else if (!string.IsNullOrEmpty(uri.UserInfo))
+    {
+        user = Uri.UnescapeDataString(uri.UserInfo);
+    }
+
+    var parts = new List<string> { $"{uri.Host}:{port}" };
+
+    if (!string.IsNullOrEmpty(user))
+    {
+        parts.Add($"user={user}");
+    }
+
+    if (!string.IsNullOrEmpty(password))
+    {
+        parts.Add($"password={password}");
+    }
+
+    parts.Add($"ssl={(useSsl ? "true" : "false")}");
+
+    var normalized = string.Join(",", parts);
+
+    Log.Information(
+        "ConnectionStrings:Redis estaba en formato URI; normalizado a sintaxis StackExchange.Redis (ssl={UseSsl}).",
+        useSsl);
+
+    return normalized;
+}
 
 /// <summary>
 /// Marcador para que los tests de integracion (WebApplicationFactory) puedan referenciar
