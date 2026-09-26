@@ -1,0 +1,33 @@
+﻿{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "applicationUrl": "http://localhost:5266",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Database__Provider": "Sqlite",
+        "Database__ConnectionString": "Data Source=rescauta.dev.db",
+        "Database__MigrateOnStartup": "true",
+        "ConnectionStrings__Redis": "localhost:6379"
+      }
+    },
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "applicationUrl": "https://localhost:7159;http://localhost:5266",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Database__Provider": "Sqlite",
+        "Database__ConnectionString": "Data Source=rescauta.dev.db",
+        "Database__MigrateOnStartup": "true",
+        "ConnectionStrings__Redis": "localhost:6379"
+      }
+    }
+  }
+}

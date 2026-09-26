@@ -1,0 +1,21 @@
+<Project>
+
+  <!--
+    Configuración común a TODOS los proyectos de la solución.
+    Cualquiera de los 3 devs que agregue un proyecto nuevo lo hereda automáticamente.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Credenciales de conexión SOLO en user-secrets / variables de entorno. -->
+    <UserSecretsId Condition="'$(UserSecretsId)' == ''">rescauta-$(MSBuildProjectName)</UserSecretsId>
+  </PropertyGroup>
+
+</Project>

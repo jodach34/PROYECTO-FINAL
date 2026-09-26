@@ -1,0 +1,60 @@
+# Entorno de desarrollo local compartido por los 3 devs.
+#   docker compose up -d
+#   -> Redis en localhost:6379
+#
+# El proveedor por defecto del proyecto es SQLite (archivo), asi que la base de datos
+# no requiere contenedor. Postgres solo hace falta si alguien prueba el provider
+# "Postgres" de la seccion Database de appsettings.json.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: rescauta-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - rescauta-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: rescauta-postgres
+    restart: unless-stopped
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: rescauta
+      POSTGRES_USER: rescauta
+      POSTGRES_PASSWORD: rescauta_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - rescauta-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rescauta -d rescauta"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: rescauta-sqlserver
+    restart: unless-stopped
+    profiles: ["sqlserver"]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Rescauta_dev_2024!"
+    ports:
+      - "1433:1433"
+    volumes:
+      - rescauta-sqlserver-data:/var/opt/mssql
+
+volumes:
+  rescauta-redis-data:
+  rescauta-postgres-data:
+  rescauta-sqlserver-data:

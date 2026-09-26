@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    CAPA 4 - API (composition root / capa de presentacion HTTP)
+    Reglas de dependencia:
+      * Referencia a Rescauta.Application y a Rescauta.Infrastructure.
+      * UNICA capa que ejecuta AddControllers, MapControllers, MapHub, UseCors, migraciones.
+      * NO contiene logica de negocio: los controllers son DelegatingHandlers finos.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Rescauta.Api</RootNamespace>
+    <UserSecretsId>rescauta-api-dev</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rescauta.Application\Rescauta.Application.csproj" />
+    <ProjectReference Include="..\Rescauta.Infrastructure\Rescauta.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Asp.Versioning.Mvc" />
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+  </ItemGroup>
+
+</Project>
