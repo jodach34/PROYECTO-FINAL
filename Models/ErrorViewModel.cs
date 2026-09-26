@@ -1,4 +1,4 @@
-namespace RescautaApp.Models;
+namespace PROYECTO_FINAL.Models;
 
 public class ErrorViewModel
 {
