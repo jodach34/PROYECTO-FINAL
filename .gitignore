@@ -43,3 +43,15 @@ appsettings.*.Local.json
 *.swp
 *.bak
 *.tmp
+
+## Base de datos local de desarrollo
+## El archivo .db es el estado de la maquina de cada uno, no codigo. Subirlo hace que un
+## `git pull` pise los datos que el otro desarrollo acaba de registrar, y el seed deja de
+## correr porque la base ya "existe". Los archivos -wal y -shm son de SQLite y aparecen al
+## escribir.
+*.db
+*.db-shm
+*.db-wal
+
+## Salidas de prueba
+logs-*.txt

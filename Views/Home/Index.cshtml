@@ -1,6 +1,19 @@
-﻿@{
+@model MapaViewModel
+@{
     ViewData["Title"] = "Mapa Interactivo";
     Layout = null;
+
+    // Los distritos salen de la base, no de un catalogo escrito a mano: si manana se
+    // registra un comedor en un distrito nuevo, el filtro lo muestra sin tocar la vista.
+    var distritos = Model.Comedores
+        .Select(c => c.Distrito)
+        .Where(d => !string.IsNullOrWhiteSpace(d))
+        .Distinct()
+        .OrderBy(d => d)
+        .ToList();
+
+    // El primer comedor de la lista es el mas urgente: la API ya los ordena por estado.
+    var destacado = Model.Comedores.FirstOrDefault();
 }
 
 @await Html.PartialAsync("_RescautaHead")
@@ -16,6 +29,15 @@
             <div class="px-5 pt-5 pb-4 border-b border-gray-100">
                 <h1 class="text-base font-extrabold text-ink">Comedores Registrados</h1>
                 <p class="text-[11px] text-muted mt-0.5">Zona de cobertura: Lima Metropolitana</p>
+
+                @if (Model.Error is not null)
+                {
+                    @* Sin API no hay mapa, pero la pantalla tiene que decir por que en vez de
+                       salir vacia: un 500 en blanco hace pensar que no hay comedores. *@
+                    <div class="mt-3 px-3 py-2.5 rounded-lg bg-critico/10 border border-critico/25 text-[11px] text-critico font-semibold" role="alert">
+                        @Model.Error
+                    </div>
+                }
 
                 <div class="relative mt-4">
                     <input type="text" placeholder="Filtrar por nombre..."
@@ -41,114 +63,54 @@
                     <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Distrito / Zona</p>
                     <select class="w-full text-xs px-2.5 py-2 rounded-lg border border-gray-200 bg-canvas focus:outline-none focus:ring-2 focus:ring-brand/30">
                         <option>Todos los distritos</option>
-                        <option>San Juan de Miraflores</option>
-                        <option>Villa María del Triunfo</option>
-                        <option>Lurigancho-Chosica</option>
-                        <option>Villa El Salvador</option>
+                        @foreach (var distrito in distritos)
+                        {
+                            <option>@distrito</option>
+                        }
                     </select>
                 </div>
             </div>
 
             <p class="px-5 py-2.5 text-[10px] font-bold text-muted uppercase tracking-widest bg-canvas border-b border-gray-100">
-                Mostrando 5 comedores
+                Mostrando @Model.Comedores.Count @(Model.Comedores.Count == 1 ? "comedor" : "comedores")
             </p>
 
             <div class="flex-1 overflow-y-auto divide-y divide-gray-100">
 
-                @* --- Card 1: SELECCIONADA --- *@
-                <a href="#" class="block px-5 py-3.5 bg-brand-lt border-l-4 border-brand transition-colors">
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0">
-                            <p class="text-xs font-extrabold text-ink truncate">Olla Común La Esperanza</p>
-                            <p class="text-[10px] text-muted mt-0.5">Sector 3, San Juan de Miraflores</p>
-                        </div>
-                        <span class="flex-none px-2 py-0.5 rounded bg-critico text-white text-[9px] font-extrabold uppercase tracking-wide">Emergencia</span>
-                    </div>
-                    <div class="flex items-center gap-3 mt-2.5 text-[10px] text-muted">
-                        <span class="font-semibold text-ink">180 raciones/día</span>
-                        <span class="w-px h-3 bg-gray-300"></span>
-                        <span>Stock 15%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 h-1 rounded-full mt-2 overflow-hidden">
-                        <div class="bg-critico h-full rounded-full" style="width:15%"></div>
-                    </div>
-                </a>
+                @foreach (var comedor in Model.Comedores)
+                {
+                    var ancho = Math.Clamp((double)comedor.PorcentajeAbastecimiento, 0d, 100d);
+                    var color = Presentacion.ColorEstado(comedor.Estado);
+                    var esDestacado = destacado is not null && comedor.Id == destacado.Id;
 
-                @* --- Card 2 --- *@
-                <a href="#" class="block px-5 py-3.5 border-l-4 border-transparent hover:bg-canvas transition-colors">
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0">
-                            <p class="text-xs font-bold text-ink truncate">Comedor Santa Rosa</p>
-                            <p class="text-[10px] text-muted mt-0.5">Villa María del Triunfo</p>
+                    @* El enlace va al Panel con el id del comedor: el mapa y el panel son la
+                       misma red vista de dos formas, y el pin tiene que llevar a su ficha. *@
+                    <a href="@Url.Action("Index", "ControlPanel", new { comedorId = comedor.Id })"
+                       class="block px-5 py-3.5 border-l-4 transition-colors @(esDestacado ? "bg-brand-lt border-brand" : "border-transparent hover:bg-canvas")">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="text-xs truncate @(esDestacado ? "font-extrabold" : "font-bold") text-ink">@comedor.Nombre</p>
+                                <p class="text-[10px] text-muted mt-0.5">@comedor.Distrito</p>
+                            </div>
+                            <span class="flex-none px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide @(comedor.Estado == "Emergencia" ? "bg-critico text-white" : Presentacion.ClaseEstado(comedor.Estado))">@comedor.Estado</span>
                         </div>
-                        <span class="flex-none px-2 py-0.5 rounded bg-alerta/10 text-alerta text-[9px] font-extrabold uppercase tracking-wide">Alerta</span>
-                    </div>
-                    <div class="flex items-center gap-3 mt-2.5 text-[10px] text-muted">
-                        <span class="font-semibold text-ink">150 raciones/día</span>
-                        <span class="w-px h-3 bg-gray-300"></span>
-                        <span>Stock 45%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 h-1 rounded-full mt-2 overflow-hidden">
-                        <div class="bg-alerta h-full rounded-full" style="width:45%"></div>
-                    </div>
-                </a>
+                        <div class="flex items-center gap-3 mt-2.5 text-[10px] text-muted">
+                            <span class="font-semibold text-ink">@comedor.RacionesDiarias raciones/día</span>
+                            <span class="w-px h-3 bg-gray-300"></span>
+                            <span>Stock @comedor.PorcentajeAbastecimiento.ToString("0.#")%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 h-1 rounded-full mt-2 overflow-hidden">
+                            <div class="h-full rounded-full bg-@color" style="width:@ancho.ToString("0.##")%"></div>
+                        </div>
+                    </a>
+                }
 
-                @* --- Card 3 --- *@
-                <a href="#" class="block px-5 py-3.5 border-l-4 border-transparent hover:bg-canvas transition-colors">
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0">
-                            <p class="text-xs font-bold text-ink truncate">Comedor Las Palmeras</p>
-                            <p class="text-[10px] text-muted mt-0.5">Lurigancho-Chosica</p>
-                        </div>
-                        <span class="flex-none px-2 py-0.5 rounded bg-ok/10 text-ok text-[9px] font-extrabold uppercase tracking-wide">Abastecido</span>
-                    </div>
-                    <div class="flex items-center gap-3 mt-2.5 text-[10px] text-muted">
-                        <span class="font-semibold text-ink">220 raciones/día</span>
-                        <span class="w-px h-3 bg-gray-300"></span>
-                        <span>Stock 82%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 h-1 rounded-full mt-2 overflow-hidden">
-                        <div class="bg-ok h-full rounded-full" style="width:82%"></div>
-                    </div>
-                </a>
-
-                @* --- Card 4 --- *@
-                <a href="#" class="block px-5 py-3.5 border-l-4 border-transparent hover:bg-canvas transition-colors">
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0">
-                            <p class="text-xs font-bold text-ink truncate">Olla Común San Martín</p>
-                            <p class="text-[10px] text-muted mt-0.5">Villa El Salvador</p>
-                        </div>
-                        <span class="flex-none px-2 py-0.5 rounded bg-alerta/10 text-alerta text-[9px] font-extrabold uppercase tracking-wide">Alerta</span>
-                    </div>
-                    <div class="flex items-center gap-3 mt-2.5 text-[10px] text-muted">
-                        <span class="font-semibold text-ink">95 raciones/día</span>
-                        <span class="w-px h-3 bg-gray-300"></span>
-                        <span>Stock 38%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 h-1 rounded-full mt-2 overflow-hidden">
-                        <div class="bg-alerta h-full rounded-full" style="width:38%"></div>
-                    </div>
-                </a>
-
-                @* --- Card 5 --- *@
-                <a href="#" class="block px-5 py-3.5 border-l-4 border-transparent hover:bg-canvas transition-colors">
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0">
-                            <p class="text-xs font-bold text-ink truncate">Comedor Villa Unión</p>
-                            <p class="text-[10px] text-muted mt-0.5">Pucusana, Lima</p>
-                        </div>
-                        <span class="flex-none px-2 py-0.5 rounded bg-ok/10 text-ok text-[9px] font-extrabold uppercase tracking-wide">Abastecido</span>
-                    </div>
-                    <div class="flex items-center gap-3 mt-2.5 text-[10px] text-muted">
-                        <span class="font-semibold text-ink">130 raciones/día</span>
-                        <span class="w-px h-3 bg-gray-300"></span>
-                        <span>Stock 74%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 h-1 rounded-full mt-2 overflow-hidden">
-                        <div class="bg-ok h-full rounded-full" style="width:74%"></div>
-                    </div>
-                </a>
+                @if (Model.Comedores.Count == 0)
+                {
+                    <p class="px-5 py-8 text-center text-xs text-muted">
+                        No hay comedores registrados.
+                    </p>
+                }
 
             </div>
         </aside>
@@ -214,40 +176,36 @@
             </svg>
 
             @* --- Marcadores --- *@
-            @{
-                // Datos ficticios de los pines: posicion en % sobre el contenedor
-                var pines = new[] {
-                    new { Left = 30, Top = 41, Color = "critico", Selected = true,  Nombre = "Olla Común La Esperanza" },
-                    new { Left = 49, Top = 62, Color = "alerta",  Selected = false, Nombre = "Comedor Santa Rosa" },
-                    new { Left = 63, Top = 32, Color = "ok",      Selected = false, Nombre = "Comedor Las Palmeras" },
-                    new { Left = 22, Top = 76, Color = "alerta",  Selected = false, Nombre = "Olla Común San Martín" },
-                    new { Left = 57, Top = 80, Color = "ok",      Selected = false, Nombre = "Comedor Villa Unión" }
-                };
-            }
-
-            @foreach (var pin in pines)
+            @* La posicion del pin NO esta en la vista: viene de MapaX y MapaY, que el
+               dominio guarda en el comedor. Asi el pin sigue en su sitio aunque se mueva
+               el mapa de fondo, y registrar un comedor nuevo no obliga a editar el Razor. *@
+            @foreach (var comedor in Model.Comedores)
             {
-                <div class="absolute z-10 -translate-x-1/2 -translate-y-full"
-                     style="left:@pin.Left%; top:@pin.Top%;"
-                     title="@pin.Nombre">
+                var color = Presentacion.ColorEstado(comedor.Estado);
+                var esDestacado = destacado is not null && comedor.Id == destacado.Id;
+
+                <a href="@Url.Action("Index", "ControlPanel", new { comedorId = comedor.Id })"
+                   class="absolute z-10 -translate-x-1/2 -translate-y-full"
+                   style="left:@comedor.MapaX.ToString("0.##")%; top:@comedor.MapaY.ToString("0.##")%;"
+                   title="@comedor.Nombre (@comedor.PorcentajeAbastecimiento.ToString("0.#")%)">
                     <div class="relative flex flex-col items-center">
-                        @if (pin.Selected)
+                        @if (esDestacado)
                         {
-                            <span class="absolute -inset-2 rounded-full bg-critico/20 animate-ping"></span>
+                            <span class="absolute -inset-2 rounded-full bg-@color/20 animate-ping"></span>
                         }
-                        <div class="relative w-9 h-9 rounded-full border-[3px] border-white shadow-lg flex items-center justify-center text-white bg-@pin.Color @(pin.Selected ? "scale-110" : "")">
+                        <div class="relative w-9 h-9 rounded-full border-[3px] border-white shadow-lg flex items-center justify-center text-white bg-@color @(esDestacado ? "scale-110" : "")">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" /><path d="M7 2v20" />
                                 <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7" />
                             </svg>
                         </div>
-                        <div class="w-3 h-3 rotate-45 bg-@pin.Color border-r-2 border-b-2 border-white -mt-1.5"></div>
-                        @if (pin.Selected)
+                        <div class="w-3 h-3 rotate-45 bg-@color border-r-2 border-b-2 border-white -mt-1.5"></div>
+                        @if (esDestacado)
                         {
-                            <span class="mt-1.5 bg-ink text-white text-[9px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded whitespace-nowrap shadow">La Esperanza</span>
+                            <span class="mt-1.5 bg-ink text-white text-[9px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded whitespace-nowrap shadow">@comedor.Nombre</span>
                         }
                     </div>
-                </div>
+                </a>
             }
 
             @* --- Controles de zoom (decorativos) --- *@
@@ -276,63 +234,38 @@
                 </div>
             </div>
 
-            @* --- Ficha flotante del comedor seleccionado --- *@
-            <div class="absolute left-5 bottom-5 z-20 w-[370px] bg-white rounded-2xl shadow-[0_8px_32px_rgba(31,41,55,.14)] border border-gray-200 overflow-hidden">
-                <div class="h-1.5 bg-critico"></div>
-                <div class="p-5">
-                    <span class="inline-block px-2.5 py-1 rounded-md bg-critico text-white text-[10px] font-extrabold uppercase tracking-widest">
-                        Emergencia
-                    </span>
-                    <h2 class="text-lg font-extrabold text-ink mt-2.5">Olla Común La Esperanza</h2>
-                    <p class="text-[11px] text-muted mt-1">Asoc. De Vivienda La Esperanza, Sector 3, SJM</p>
+            @* --- Ficha flotante del comedor mas urgente --- *@
+            @* Solo se pinta si hay comedores. Con la API caida la seccion desaparece en vez
+               de mostrar datos viejos, que es peor que no mostrar nada. *@
+            @if (destacado is not null)
+            {
+                var colorFicha = Presentacion.ColorEstado(destacado.Estado);
 
-                    <div class="grid grid-cols-2 gap-3 mt-4">
-                        <div class="bg-canvas rounded-lg p-2.5">
-                            <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Raciones Diarias</p>
-                            <p class="text-xs font-extrabold text-ink mt-0.5">180 raciones</p>
+                <div class="absolute left-5 bottom-5 z-20 w-[370px] bg-white rounded-2xl shadow-[0_8px_32px_rgba(31,41,55,.14)] border border-gray-200 overflow-hidden">
+                    <div class="h-1.5 bg-@colorFicha"></div>
+                    <div class="p-5">
+                        <span class="inline-block px-2.5 py-1 rounded-md bg-@colorFicha text-white text-[10px] font-extrabold uppercase tracking-widest">
+                            @destacado.Estado
+                        </span>
+                        <h2 class="text-lg font-extrabold text-ink mt-2.5">@destacado.Nombre</h2>
+                        <p class="text-[11px] text-muted mt-1">@destacado.Distrito</p>
+                        <div class="grid grid-cols-2 gap-3 mt-4">
+                            <div class="bg-canvas rounded-lg p-2.5">
+                                <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Raciones Diarias</p>
+                                <p class="text-xs font-extrabold text-ink mt-0.5">@destacado.RacionesDiarias raciones</p>
+                            </div>
+                            <div class="bg-canvas rounded-lg p-2.5">
+                                <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Insumos</p>
+                                <p class="text-xs font-extrabold text-ink mt-0.5">@destacado.TotalInsumos registrados</p>
+                            </div>
                         </div>
-                        <div class="bg-canvas rounded-lg p-2.5">
-                            <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Contacto Directo</p>
-                            <p class="text-xs font-extrabold text-ink mt-0.5">+51 984 732 104</p>
-                        </div>
+                        <a href="@Url.Action("Index", "ControlPanel", new { comedorId = destacado.Id })"
+                           class="block w-full mt-5 bg-brand hover:bg-brand-dk text-white py-3 rounded-xl text-xs font-extrabold tracking-wide transition-colors shadow-sm text-center">
+                            Ver detalle y kardex
+                        </a>
                     </div>
-
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-5 mb-2.5">Inventario Crítico</p>
-                    <div class="space-y-3">
-                        <div>
-                            <div class="flex justify-between text-[11px] mb-1">
-                                <span class="font-semibold text-ink">Viveres Secos</span>
-                                <span class="font-extrabold text-critico">15%</span>
-                            </div>
-                            <div class="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
-                                <div class="bg-critico h-full rounded-full" style="width:15%"></div>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="flex justify-between text-[11px] mb-1">
-                                <span class="font-semibold text-ink">Agua Potable</span>
-                                <span class="font-extrabold text-alerta">45%</span>
-                            </div>
-                            <div class="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
-                                <div class="bg-alerta h-full rounded-full" style="width:45%"></div>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="flex justify-between text-[11px] mb-1">
-                                <span class="font-semibold text-ink">Gas Licuado</span>
-                                <span class="font-extrabold text-ok">60%</span>
-                            </div>
-                            <div class="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
-                                <div class="bg-ok h-full rounded-full" style="width:60%"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button class="w-full mt-5 bg-brand hover:bg-brand-dk text-white py-3 rounded-xl text-xs font-extrabold tracking-wide transition-colors shadow-sm">
-                        Planificar Ruta de Entrega
-                    </button>
                 </div>
-            </div>
+            }
 
         </section>
     </div>

@@ -1,0 +1,52 @@
+# Despliegue en Render.
+#
+# SON DOS SERVICIOS, y no es capricho: el proyecto quedo partido en una API (que habla con
+# SQLite) y un MVC (que la consume por HTTP). Render ejecuta UN proceso por servicio web,
+# asi que un solo servicio no alcanza: si solo se despliega el MVC, las tres pantallas abren
+# pero muestran el aviso "No se pudo contactar a la API".
+#
+#   rescauta-api -> puerto que Render asigna, expone /api/v1/... y crea la base al arrancar
+#   rescauta-mvc  -> puerto 80 publico, es la pagina que se abre
+#
+# LO UNICO QUE HAY QUE EDITAR A MANO en el panel de Render:
+#   En rescauta-mvc, la variable Api__BaseUrl debe apuntar a la URL publica de rescauta-api
+#   (algo como https://rescauta-api.onrender.com/ con la barra al final). Aqui se deja como
+#   "sync: false" justamente para que Render la pida y no la adivine.
+#
+# SOBRE SQLITE: el plan gratis de Render NO tiene disco. El archivo .db vive en el sistema
+# de archivos del contenedor, que se borra en cada redespliegue. La semilla corre al
+# arrancar, asi que la app vuelve a levantar con los 5 comedores de ejemplo, pero las
+# donaciones registradas se pierden. Para que persistan hay que agregar un disco montado
+# en /var/data y poner Data Source=/var/data/rescauta.db (que es lo que ya hace este
+# archivo, para cuando el disco exista).
+
+services:
+  - type: web
+    name: rescauta-api
+    runtime: dotnet
+    rootDir: Rescauta
+    buildCommand: dotnet publish Rescauta.Api/Rescauta.Api.csproj -c Release -o out
+    startCommand: ./out/Rescauta.Api
+    healthCheckPath: /api/v1/system/readiness
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Database__Provider
+        value: Sqlite
+      - key: Database__ConnectionString
+        value: Data Source=/var/data/rescauta.db
+      - key: Database__MigrateOnStartup
+        value: "true"
+
+  - type: web
+    name: rescauta-mvc
+    runtime: dotnet
+    buildCommand: dotnet publish PROYECTO-FINAL.csproj -c Release -o out
+    startCommand: ./out/PROYECTO-FINAL
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # La API tiene que existir ANTES que este servicio, porque el MVC la llama en cada
+      # carga de pagina para pintar el mapa.
+      - key: Api__BaseUrl
+        sync: false

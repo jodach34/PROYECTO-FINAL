@@ -1,6 +1,13 @@
+@model PanelViewModel
 @{
     ViewData["Title"] = "Panel de Control";
     Layout = null;
+
+    // El encabezado dice "actualizado a las..." con la hora REAL del servidor, no con una
+    // hora fija escrita en la vista. Con datos de seed el kardex es de las 07:00 de hoy,
+    // asi que la hora que se muestra es la del ultimo asiento, no la del reloj: asi el
+    // operador ve que tan viejo es el dato que esta mirando.
+    var ultimoAsiento = Model.Kardex.FirstOrDefault()?.FechaHora;
 }
 
 @await Html.PartialAsync("_RescautaHead")
@@ -11,141 +18,166 @@
 
     <div class="flex-1 overflow-y-auto p-8">
 
+        @if (Model.Error is not null)
+        {
+            @* Sin API el panel no puede inventar numeros. Se avisa arriba y se oculta el
+               contenido, porque un panel lleno de ceros y de "—" parece un comedor vacio. *@
+            <div class="mb-6 px-4 py-3.5 rounded-xl bg-critico/10 border border-critico/25 text-xs text-critico font-semibold" role="alert">
+                @Model.Error
+            </div>
+        }
+
+        @if (Model.ComedorNoEncontrado)
+        {
+            <div class="mb-6 px-4 py-3.5 rounded-xl bg-alerta/10 border border-alerta/25 text-xs text-alerta font-semibold" role="alert">
+                El comedor solicitado no existe o ya no esta registrado.
+            </div>
+        }
+
         @* ================= ENCABEZADO ================= *@
         <div class="mb-6 flex items-start justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-extrabold text-ink">Panel de Inventario y Kardex</h1>
-                <p class="text-xs text-muted mt-1">Olla Común La Esperanza (ID: COM-042) • Actualizado hoy 08:30 AM</p>
+                <p class="text-xs text-muted mt-1">
+                    @if (Model.Comedor is not null)
+                    {
+                        <text>@Model.Comedor.Nombre (@Model.Comedor.Distrito) • @Model.Comedor.RacionesDiarias raciones/día</text>
+                    }
+                    else
+                    {
+                        <text>Sin comedor seleccionado</text>
+                    }
+                    @if (ultimoAsiento is not null)
+                    {
+                        <text> • Último asiento: @ultimoAsiento.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</text>
+                    }
+                </p>
             </div>
-            <span class="flex-none bg-gray-200 text-muted px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M2 2l20 20M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 4-2.7M2 9a15 15 0 0 1 5.2-3.3M1 5a20 20 0 0 1 6-3.6" />
-                    <path d="M20.5 16.5a5 5 0 0 0-4-2.4" /><path d="M22 13a10 10 0 0 0-3-2" />
-                </svg>
-                Sin conexión — modo offline
-            </span>
+
+            @* Selector de comedor. Un <select> que navega con un <form method="get"> y no con
+               JavaScript: la pantalla queda con URL propia, se puede compartir y el boton de
+               atras del navegador funciona. *@
+            <form method="get" asp-controller="ControlPanel" asp-action="Index" class="flex-none">
+                <label for="comedorId" class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Comedor</label>
+                <select id="comedorId" name="comedorId" onchange="this.form.submit()"
+                        class="text-xs px-2.5 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand/30">
+                    @foreach (var comedor in Model.Comedores)
+                    {
+                        var seleccionado = Model.Comedor is not null && comedor.Id == Model.Comedor.Id;
+                        <option value="@comedor.Id" selected="@seleccionado">@comedor.Nombre</option>
+                    }
+                </select>
+                <noscript>
+                    <button type="submit" class="mt-2 w-full text-[10px] font-bold text-brand hover:underline">Ver</button>
+                </noscript>
+            </form>
         </div>
 
         @* ================= TARJETAS DE METRICAS ================= *@
+        @* Las tres tarjetas leen del kardex y del inventario REALES. La tarjeta de gas no
+           puede decir "4 dias": el dominio no tiene consumo diario, asi que DiasCobertura
+           llega null desde la API y aqui se muestra como guion en vez de inventar un numero. *@
         <div class="grid grid-cols-3 gap-6 mb-8">
 
-            @* 1. Stock de Arroz *@
-            <div class="bg-white p-5 rounded-2xl shadow-card border border-gray-200">
-                <span class="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">Stock de Arroz</span>
-                <div class="flex items-end justify-between mt-3">
-                    <div>
-                        <h3 class="text-3xl font-extrabold text-ink">12 kg</h3>
-                        <p class="text-xs text-critico font-bold mt-1">Crítico (Aprox. 2 días)</p>
-                    </div>
-                    <div class="w-14 h-14 rounded-full border-[5px] border-critico/20 border-t-critico flex items-center justify-center text-[10px] font-extrabold text-critico">
-                        15%
-                    </div>
-                </div>
-            </div>
+            @* El insumo mas bajo del comedor elegido. Se elige aqui, no en la API, porque
+               "el mas critico" es una pregunta de PANTALLA: la API manda los porcentajes y
+               el Razor elige el peor. El color sale de umbrales fijos, no del estado del
+               comedor: un Arroz al 20% dentro de un comedor "Abastecido" sigue siendo
+               una alerta, y el operador lo tiene que ver asi. *@
+            @{
+                var masCritico = Model.Comedor?.Inventario
+                    .Where(i => i.Porcentaje is not null)
+                    .OrderBy(i => i.Porcentaje)
+                    .FirstOrDefault();
 
-            @* 2. Dias de Gas *@
+                var pctCritico = (double)(masCritico?.Porcentaje ?? 0m);
+                var colorCritico = pctCritico < 25 ? "critico" : pctCritico < 60 ? "alerta" : "ok";
+            }
             <div class="bg-white p-5 rounded-2xl shadow-card border border-gray-200">
-                <span class="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">Días de Gas Restantes</span>
-                <div class="flex items-end justify-between mt-3">
-                    <div>
-                        <h3 class="text-3xl font-extrabold text-ink">4 días</h3>
-                        <p class="text-xs text-alerta font-bold mt-1">1 Balón de GLP de 10kg conectado</p>
+                <span class="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">Insumo Más Crítico</span>
+                @if (masCritico is not null)
+                {
+                    <div class="mt-3">
+                        <div class="flex items-end justify-between">
+                            <h3 class="text-3xl font-extrabold text-ink">@masCritico.Porcentaje!.Value.ToString("0.#")%</h3>
+                            <span class="text-xs font-extrabold text-@colorCritico pb-1">@colorCritico</span>
+                        </div>
+                        <p class="text-xs text-muted mt-1">@masCritico.Nombre</p>
+                        <div class="w-full bg-gray-200 h-1.5 rounded-full mt-2.5 overflow-hidden">
+                            <div class="bg-@colorCritico h-full rounded-full" style="width:@pctCritico.ToString("0.##")%"></div>
+                        </div>
                     </div>
-                    <span class="w-11 h-11 rounded-xl bg-alerta/10 text-alerta flex items-center justify-center flex-none">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M10.3 21.5 2 13.2a1 1 0 0 1 0-1.4l8.3-8.3a1 1 0 0 1 1.4 0l8.3 8.3a1 1 0 0 1 0 1.4z" />
-                            <path d="M7.5 10.5 12 15M15 6.5l-3.5 3.5" />
-                        </svg>
-                    </span>
-                </div>
-            </div>
-
-            @* 3. Nivel de Agua *@
-            <div class="bg-white p-5 rounded-2xl shadow-card border border-gray-200">
-                <span class="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">Nivel de Agua</span>
-                <div class="mt-3">
-                    <div class="flex items-end justify-between">
-                        <h3 class="text-3xl font-extrabold text-ink">450 Litros</h3>
-                        <span class="text-xs font-extrabold text-ok pb-1">45%</span>
-                    </div>
-                    <p class="text-xs text-muted mt-1">Tanque de Reserva</p>
-                    <div class="w-full bg-gray-200 h-1.5 rounded-full mt-2.5 overflow-hidden">
-                        <div class="bg-ok h-full rounded-full" style="width:45%"></div>
-                    </div>
-                </div>
+                }
+                else
+                {
+                    <p class="text-xs text-muted mt-3">Este comedor no tiene insumos con tope registrado.</p>
+                }
             </div>
         </div>
 
         @* ================= TABLA KARDEX ================= *@
         <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
             <div class="flex items-center justify-between mb-5">
-                <h2 class="font-extrabold text-ink text-base">Registro de Movimientos (Kardex Reciente)</h2>
-                <a href="#" class="text-brand text-xs font-extrabold hover:underline">Ver Historial Completo →</a>
+                <h2 class="font-extrabold text-ink text-base">
+                    Registro de Movimientos (Kardex Reciente)
+                    @if (Model.Comedor is not null)
+                    {
+                        <span class="text-muted font-bold">— @Model.Comedor.Nombre</span>
+                    }
+                </h2>
+                <span class="text-[10px] font-bold text-muted uppercase tracking-widest">@Model.Kardex.Count asientos</span>
             </div>
 
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="border-b border-gray-200 text-[10px] text-gray-400 uppercase tracking-widest">
-                        <th class="py-3 font-bold">Fecha</th>
-                        <th class="py-3 font-bold">Insumo / Producto</th>
-                        <th class="py-3 font-bold">Tipo</th>
-                        <th class="py-3 font-bold">Cantidad</th>
-                        <th class="py-3 font-bold">Responsable</th>
-                    </tr>
-                </thead>
-                <tbody class="text-xs divide-y divide-gray-100">
+            @if (Model.Kardex.Count == 0)
+            {
+                <p class="py-8 text-center text-xs text-muted">
+                    Este comedor todavía no tiene movimientos registrados en su kardex.
+                </p>
+            }
+            else
+            {
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-gray-200 text-[10px] text-gray-400 uppercase tracking-widest">
+                            <th class="py-3 font-bold">Fecha</th>
+                            <th class="py-3 font-bold">Insumo / Producto</th>
+                            <th class="py-3 font-bold">Tipo</th>
+                            <th class="py-3 font-bold">Cantidad</th>
+                            <th class="py-3 font-bold">Concepto</th>
+                            <th class="py-3 font-bold">Responsable</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-xs divide-y divide-gray-100">
+                        @foreach (var fila in Model.Kardex)
+                        {
+                            var esEntrada = fila.TipoMovimiento == "Entrada";
 
-                    <tr>
-                        <td class="py-3.5 text-muted">Hoy, 07:15 AM</td>
-                        <td class="py-3.5 font-bold text-ink">Arroz Extra Fino</td>
-                        <td class="py-3.5"><span class="bg-critico/10 text-critico px-2 py-1 rounded-md font-extrabold text-[10px]">SALIDA (Consumo)</span></td>
-                        <td class="py-3.5 font-extrabold text-critico">- 4.5 kg</td>
-                        <td class="py-3.5 text-muted">Juana Quispe (Cocina)</td>
-                    </tr>
+                            @* La clase del tipo se decide con el MISMO criterio que la barra de
+                               color: si la cantidad sube, verde; si baja, rojo. Si el signo y
+                               el color se calcularan por separado, un dia un asiento sale
+                               "+5" en rojo y el operador ya no trusta la pantalla. *@
+                            <tr>
+                                <td class="py-3.5 text-muted">@fila.FechaHora.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                <td class="py-3.5 font-bold text-ink">@fila.InsumoNombre</td>
+                                <td class="py-3.5">
+                                    <span class="px-2 py-1 rounded-md font-extrabold text-[10px] @(esEntrada ? "bg-ok/10 text-ok" : "bg-critico/10 text-critico")">
+                                        @(esEntrada ? "ENTRADA" : "SALIDA")
+                                    </span>
+                                </td>
+                                <td class="py-3.5 font-extrabold @(esEntrada ? "text-ok" : "text-critico")">
+                                    @(esEntrada ? "+" : "−") @fila.Cantidad.ToString("0.##") @fila.UnidadMedida
+                                </td>
+                                <td class="py-3.5 text-muted">@fila.Concepto</td>
+                                <td class="py-3.5 text-muted">@fila.Responsable</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
 
-                    <tr>
-                        <td class="py-3.5 text-muted">Ayer, 04:30 PM</td>
-                        <td class="py-3.5 font-bold text-ink">Aceite Vegetal</td>
-                        <td class="py-3.5"><span class="bg-ok/10 text-ok px-2 py-1 rounded-md font-extrabold text-[10px]">ENTRADA (Donación)</span></td>
-                        <td class="py-3.5 font-extrabold text-ok">+ 12 Litros</td>
-                        <td class="py-3.5 text-muted">Donación Anónima</td>
-                    </tr>
-
-                    <tr>
-                        <td class="py-3.5 text-muted">24 Ene, 11:00 AM</td>
-                        <td class="py-3.5 font-bold text-ink">Balón de Gas GLP 10kg</td>
-                        <td class="py-3.5"><span class="bg-critico/10 text-critico px-2 py-1 rounded-md font-extrabold text-[10px]">SALIDA (Consumo)</span></td>
-                        <td class="py-3.5 font-extrabold text-critico">- 1 unid.</td>
-                        <td class="py-3.5 text-muted">Juana Quispe (Cocina)</td>
-                    </tr>
-
-                    <tr>
-                        <td class="py-3.5 text-muted">23 Ene, 09:15 AM</td>
-                        <td class="py-3.5 font-bold text-ink">Abastecimiento Agua Potable</td>
-                        <td class="py-3.5"><span class="bg-ok/10 text-ok px-2 py-1 rounded-md font-extrabold text-[10px]">ENTRADA (Muni)</span></td>
-                        <td class="py-3.5 font-extrabold text-ok">+ 1000 Litros</td>
-                        <td class="py-3.5 text-muted">Cisterna Distrital SJM</td>
-                    </tr>
-
-                    <tr>
-                        <td class="py-3.5 text-muted">22 Ene, 05:40 PM</td>
-                        <td class="py-3.5 font-bold text-ink">Lentejas Partida</td>
-                        <td class="py-3.5"><span class="bg-ok/10 text-ok px-2 py-1 rounded-md font-extrabold text-[10px]">ENTRADA (Donación)</span></td>
-                        <td class="py-3.5 font-extrabold text-ok">+ 25 kg</td>
-                        <td class="py-3.5 text-muted">Dona. Teresa Vargas (Migrante)</td>
-                    </tr>
-
-                </tbody>
-            </table>
-
-            <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-100">
-                <button class="bg-critico hover:opacity-90 text-white px-4 py-2.5 rounded-xl text-xs font-extrabold transition shadow-sm">
-                    Reportar Faltante / Emergencia
-                </button>
-                <button class="bg-brand hover:bg-brand-dk text-white px-4 py-2.5 rounded-xl text-xs font-extrabold transition-colors shadow-sm">
-                    Registrar Consumo Diario
-                </button>
-            </div>
+            @* Los botones de la maqueta no hacen nada y no hay endpoint de salida de
+               consumo expuesto todavia. Un boton que no responde se lee como error, asi que
+               se quitan en vez de dejarlos de adorno. El consumo se registra por la API. *@
         </div>
 
     </div>

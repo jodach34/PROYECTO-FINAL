@@ -12,11 +12,10 @@ namespace Rescauta.Api.Controllers.v1;
 ///
 ///   POST /api/v1/kardex/movimiento     asienta una entrada o una salida
 ///   POST /api/v1/kardex/sync-offline   reintenta en lote los movimientos pendientes
+///   GET  /api/v1/kardex/insumos/{id}/stock   saldo de un insumo
 ///
 /// El controller NO escribe reglas de negocio: traduce HTTP a caso de uso y Result a HTTP.
 /// Toda la validacion vive en el agregado Insumo, que es el unico que puede mover el saldo.
-///
-/// El versionado ([ApiVersion] + [Route]) viene de ApiControllerBase.
 ///
 /// Rutas: el enunciado de la fase pide /api/kardex/..., pero el cascaron versiona las
 /// APIs con /api/v{version}/. Se sigue la convencion del proyecto: las rutas reales son
@@ -132,6 +131,36 @@ public sealed class KardexController(IKardexService kardexService) : ApiControll
             Exitosos = exitosos,
             Fallidos = fallidos
         });
+    }
+
+    /// <summary>
+    /// Saldo actual de un insumo. El caso de uso (ObtenerStockAsync) ya existia desde el
+    /// principio pero no lo exponia nadie, asi que el cliente no tenia forma de leer un
+    /// saldo sin asentar un movimiento. Este endpoint es esa lectura.
+    ///
+    /// 404 si el insumo no existe, 400 solo si llega un id vacio.
+    /// </summary>
+    [HttpGet("insumos/{insumoId:guid}/stock")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ObtenerStock(
+        Guid insumoId,
+        CancellationToken cancellationToken)
+    {
+        var result = await kardexService.ObtenerStockAsync(insumoId, cancellationToken);
+
+        if (result.IsFailure)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = result.ErrorCode ?? "No encontrado",
+                Detail = result.ErrorMessage,
+                Instance = HttpContext.Request.Path
+            });
+        }
+
+        return Ok(new { insumoId, stockActual = result.Value });
     }
 }
 

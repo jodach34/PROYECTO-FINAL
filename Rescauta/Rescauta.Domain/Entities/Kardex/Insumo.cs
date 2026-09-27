@@ -15,9 +15,15 @@ namespace Rescauta.Domain.Entities.Kardex;
 ///     una asignacion directa (regla 2 de Features/Kardex/README.md).
 ///
 /// Sobre el nombre: el README del modulo insinua "Articulo", pero la entidad
-/// <c>Donacion</c> (modulo del otro dev) ya expone <c>Donacion.InsumoId</c>. Llamarla
-/// <c>Insumo</c> es lo que hace que esa referencia pendiente apunte a algo real; cambiar el
-/// nombre despues obligaria a tocar el modulo de Donaciones, que no es de este modulo.
+///     <c>Donacion</c> (modulo del otro dev) ya expone <c>Donacion.InsumoId</c>. Llamarla
+///     <c>Insumo</c> es lo que hace que esa referencia pendiente apunte a algo real; cambiar el
+///     nombre despues obligaria a tocar el modulo de Donaciones, que no es de este modulo.
+///
+/// Sobre <see cref="ComedorId"/>: el insumo NO es un stock global de almacen central sino la
+/// despensa de un comedor concreto, que es como lo muestran las 3 pantallas (cada comedor con
+/// su arroz, su agua y su gas, y su propio porcentaje de abastecimiento). La FK la define el
+/// modulo Comedores, pero la consume este: <c>StockActual</c> sigue siendo el saldo de ESTE
+/// comedor. El kardex de un comedor se lee filtrando por <see cref="ComedorId"/>.
 /// </summary>
 public sealed class Insumo : BaseEntity, IAggregateRoot
 {
@@ -44,12 +50,22 @@ public sealed class Insumo : BaseEntity, IAggregateRoot
     }
 
     /// <summary>
-    /// Da de alta un insumo. Si <paramref name="stockInicial"/> es mayor que cero, ademas
-    /// asienta el movimiento de apertura, para que el saldo tenga siempre respaldo en el
-    /// kardex y no sea un numero que aparecio de la nada.
+    /// Da de alta un insumo en la despensa de un comedor. Si <paramref name="stockInicial"/> es
+    /// mayor que cero, ademas asienta el movimiento de apertura, para que el saldo tenga
+    /// siempre respaldo en el kardex y no sea un numero que aparecio de la nada.
     /// </summary>
-    public static Insumo Crear(string nombre, string unidadMedida, decimal stockInicial = 0m)
+    public static Insumo Crear(
+        Guid comedorId,
+        string nombre,
+        string unidadMedida,
+        decimal stockInicial = 0m,
+        decimal stockMaximo = 0m)
     {
+        if (comedorId == Guid.Empty)
+        {
+            throw new DomainException("El comedor del insumo es obligatorio.", nameof(comedorId));
+        }
+
         if (string.IsNullOrWhiteSpace(nombre))
         {
             throw new DomainException("El nombre del insumo es obligatorio.", nameof(nombre));
@@ -81,10 +97,17 @@ public sealed class Insumo : BaseEntity, IAggregateRoot
                 nameof(stockInicial));
         }
 
+        // Un tope menor que el stock inicial dejaria al comedor por encima del 100% para
+        // siempre, y el porcentaje de abastecimiento es justo el numero que ordena el mapa.
+        // Se corrige el tope en vez de rechazar: el inventario real manda sobre la config.
+        var tope = stockMaximo < stockInicial ? stockInicial : stockMaximo;
+
         var insumo = new Insumo
         {
+            ComedorId = comedorId,
             Nombre = nombre.Trim(),
-            UnidadMedida = unidadMedida.Trim()
+            UnidadMedida = unidadMedida.Trim(),
+            StockMaximo = tope
         };
 
         if (stockInicial > 0m)
@@ -97,6 +120,9 @@ public sealed class Insumo : BaseEntity, IAggregateRoot
 
         return insumo;
     }
+
+    /// <summary>Comedor al que pertenece esta despensa. Obligatorio.</summary>
+    public Guid ComedorId { get; private set; }
 
     /// <summary>Nombre del insumo.</summary>
     public string Nombre { get; private set; }
@@ -114,8 +140,31 @@ public sealed class Insumo : BaseEntity, IAggregateRoot
     /// </summary>
     public decimal StockActual { get; private set; }
 
-    /// <summary>Kardex del insumo, en orden de registro.</summary>
-    public IReadOnlyCollection<MovimientoKardex> Movimientos => _movimientos.AsReadOnly();
+    /// <summary>
+    /// Capacidad de la despensa: hasta donde se llena. El porcentaje de abastecimiento que
+    /// pinta el mapa es <c>StockActual / StockMaximo</c>, asi que sin este numero el cliente
+    /// no tendria de donde sacar el "15%" de la ficha. Cero significa "sin tope": el
+    /// proveedor no reporta porcentaje, solo la cantidad.
+    /// </summary>
+    public decimal StockMaximo { get; private set; }
+
+    /// <summary>
+    /// Kardex del insumo, en orden de registro.
+    ///
+    /// Se expone SIN <c>AsReadOnly()</c> a proposito. EF Core rastrea los hijos de un
+    /// agregado leyendo esta lista: si cada llamada devolviera una envoltura nueva, EF
+    /// compararia contra un envoltorio distinto del que guardo como fotografia y daria por
+    /// hecho que hay un asiento de mas, ya asientado, en vez de uno nuevo. El resultado era
+    /// un UPDATE contra una fila que todavia no existia, o sea cero filas afectadas y un
+    /// DbUpdateConcurrencyException que el servicio reportaba como "otro operacion actualizo
+    /// este insumo" cuando en realidad no habia ninguna concurrencia.
+    ///
+    /// La lista sigue siendo de solo lectura para el codigo de aplicacion: la interfaz
+    /// <see cref="IReadOnlyCollection{T}"/> no permite agregar ni quitar, y el campo privado
+    /// no lo usa ningun modulo. Para cambiar el saldo hay que pasar por
+    /// <see cref="RegistrarEntrada"/> o <see cref="RegistrarSalida"/>.
+    /// </summary>
+    public IReadOnlyCollection<MovimientoKardex> Movimientos => _movimientos;
 
     /// <summary>
     /// Da de alta existencias: compra, donacion, devolucion. Es el unico camino por el que

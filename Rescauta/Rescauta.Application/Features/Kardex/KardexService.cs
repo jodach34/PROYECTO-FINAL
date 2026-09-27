@@ -115,7 +115,18 @@ public sealed class KardexService(
             return Result<MovimientoKardexResultDto>.Failure(codigo, ex.Message);
         }
 
-        // 4. Persistir. Un unico SaveChangesAsync: el asiento y el saldo se escriben en la
+        // 4. Registrar el asiento a mano. La coleccion del agregado es de solo lectura, asi
+        //    que EF no puede deducir de ella que hay un asiento NUEVO: lo da por una entidad
+        //    ya asentada, lo manda como UPDATE contra una fila que no existe, el UPDATE
+        //    afecta cero filas y SaveChangesAsync revienta con DbUpdateConcurrencyException,
+        //    que este servicio reportaba despues como "otro operacion actualizo este
+        //    insumo". No habia ninguna concurrencia: el asiento no se habia insertado nunca.
+        //
+        //    El saldo NO necesita el mismo trato: es una propiedad escalar y EF la compara
+        //    contra su fotografia sin problema, porque el agregado se cargo con una consulta.
+        dbContext.Set<MovimientoKardex>().Add(asiento);
+
+        // 5. Persistir. Un unico SaveChangesAsync: el asiento y el saldo se escriben en la
         //    misma transaccion implicita de EF, o se escriben los dos o ninguno. Un
         //    movimiento sin su saldo, o un saldo sin su movimiento, descuadra el kardex.
         try

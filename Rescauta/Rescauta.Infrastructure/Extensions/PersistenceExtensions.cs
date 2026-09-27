@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Rescauta.Infrastructure.Options;
 using Rescauta.Infrastructure.Persistence;
+using Rescauta.Infrastructure.Persistence.Seed;
 
 namespace Rescauta.Infrastructure.Extensions;
 
@@ -25,7 +26,9 @@ namespace Rescauta.Infrastructure.Extensions;
 /// </summary>
 public static class PersistenceExtensions
 {
-    public static async Task ApplyPendingMigrationsAsync(this IServiceProvider services)
+    public static async Task ApplyPendingMigrationsAsync(
+        this IServiceProvider services,
+        CancellationToken cancellationToken = default)
     {
         using var scope = services.CreateScope();
 
@@ -64,23 +67,32 @@ public static class PersistenceExtensions
                     "Todavia no hay migraciones generadas. Se crea el esquema con EnsureCreated para el proveedor {Provider}.",
                     options.Provider);
 
-                await context.Database.EnsureCreatedAsync();
-
-                return;
+                await context.Database.EnsureCreatedAsync(cancellationToken);
             }
-
-            var pending = context.Database.GetPendingMigrations().ToArray();
-
-            if (pending.Length == 0)
+            else
             {
-                logger.LogInformation("La base de datos esta al dia. Migraciones pendientes: 0.");
+                var pending = context.Database.GetPendingMigrations().ToArray();
 
-                return;
+                if (pending.Length == 0)
+                {
+                    logger.LogInformation("La base de datos esta al dia. Migraciones pendientes: 0.");
+                }
+                else
+                {
+                    logger.LogInformation("Aplicando {Count} migracion(es) pendiente(s).", pending.Length);
+
+                    await context.Database.MigrateAsync(cancellationToken);
+                }
             }
 
-            logger.LogInformation("Aplicando {Count} migracion(es) pendiente(s).", pending.Length);
-
-            await context.Database.MigrateAsync();
+            // La semilla va DESPUES de crear o migrar el esquema, nunca antes: si se intentara
+            // antes, el INSERT fallaria por tabla inexistente en una base recien bajada.
+            //
+            // Y va tambien cuando no havia nada que migrar. Por eso el "return" del caso
+            // "base al dia" se quito: con el, una base recien creada con la primera
+            // migracion aplicada se quedaria sin datos para siempre, porque en el segundo
+            // arranque no volveria a pasar por aqui.
+            await DatosSemilla.SembrarAsync(context, logger, cancellationToken);
         }
         catch (Exception ex)
         {
