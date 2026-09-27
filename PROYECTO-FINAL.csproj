@@ -19,10 +19,10 @@
     compilar la solucion .sln, que por eso lo escondia.
   -->
   <ItemGroup>
-    <Compile Remove="Rescauta\**" />
-    <Content Remove="Rescauta\**" />
-    <None Remove="Rescauta\**" />
-    <EmbeddedResource Remove="Rescauta\**" />
+    <Compile Remove="Rescauta/**" />
+    <Content Remove="Rescauta/**" />
+    <None Remove="Rescauta/**" />
+    <EmbeddedResource Remove="Rescauta/**" />
   </ItemGroup>
 
 </Project>

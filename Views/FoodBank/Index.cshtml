@@ -1,0 +1,142 @@
+@{
+    ViewData["Title"] = "Banco de Alimentos";
+    Layout = null;
+}
+
+@await Html.PartialAsync("_RescautaHead")
+
+<body class="bg-canvas h-screen flex flex-col overflow-hidden text-ink antialiased">
+
+    @await Html.PartialAsync("_RescautaNav", "banco")
+
+    <div class="flex-1 overflow-y-auto p-8 grid grid-cols-2 gap-8 items-start">
+
+        @* ================= COLUMNA IZQUIERDA: FORMULARIO ================= *@
+        <div class="bg-white p-6 rounded-2xl shadow-card border border-gray-200">
+            <h1 class="text-lg font-extrabold text-ink">Registrar Donación de Insumos</h1>
+            <p class="text-xs text-muted mt-1 mb-6">Ayuda a reabastecer las ollas comunes más críticas ingresando tu aporte.</p>
+
+            <form class="space-y-4">
+                <div>
+                    <label class="block text-xs font-extrabold text-ink mb-1.5">Categoría del Insumo *</label>
+                    <select class="w-full text-xs px-3 py-2.5 border border-gray-200 rounded-xl bg-canvas focus:outline-none focus:ring-2 focus:ring-brand/30">
+                        <option>Alimentos Secos (Arroz, Menestras, Conservas)</option>
+                        <option>Agua Potable y Líquidos</option>
+                        <option>Balones de Gas (GLP)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-extrabold text-ink mb-1.5">Nombre Específico del Producto *</label>
+                    <input type="text" value="Sacos de Arroz Costeño de 50kg"
+                           class="w-full text-xs px-3 py-2.5 border border-gray-200 rounded-xl bg-canvas focus:outline-none focus:ring-2 focus:ring-brand/30" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-extrabold text-ink mb-1.5">Cantidad *</label>
+                        <input type="number" value="4"
+                               class="w-full text-xs px-3 py-2.5 border border-gray-200 rounded-xl bg-canvas focus:outline-none focus:ring-2 focus:ring-brand/30" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold text-ink mb-1.5">Unidad de Medida *</label>
+                        <select class="w-full text-xs px-3 py-2.5 border border-gray-200 rounded-xl bg-canvas focus:outline-none focus:ring-2 focus:ring-brand/30">
+                            <option>Unidades (Sacos de 50kg)</option>
+                            <option>Kilogramos (kg)</option>
+                            <option>Litros (L)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-extrabold text-ink mb-1.5">Fecha de Caducidad Aprox.</label>
+                    <input type="text" value="12 / 10 / 2026"
+                           class="w-full text-xs px-3 py-2.5 border border-gray-200 rounded-xl bg-canvas focus:outline-none focus:ring-2 focus:ring-brand/30" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-extrabold text-ink mb-1.5">Dirección o Punto de Recojo del Donante *</label>
+                    <input type="text" value="Av. Primavera 1280, Santiago de Surco, Lima"
+                           class="w-full text-xs px-3 py-2.5 border border-gray-200 rounded-xl bg-canvas focus:outline-none focus:ring-2 focus:ring-brand/30" />
+                </div>
+            </form>
+        </div>
+
+        @* ================= COLUMNA DERECHA: RECOMENDACION + QR ================= *@
+        <div class="space-y-6">
+
+            <div class="bg-white p-6 rounded-2xl shadow-card border border-gray-200">
+                <h2 class="font-extrabold text-ink text-base">Comedores Recomendados por Urgencia</h2>
+                <p class="text-xs text-muted mt-1 mb-5">El sistema pre-selecciona las comunidades de mayor prioridad y cercanía para tu donación.</p>
+
+                <table class="w-full text-left text-xs mb-5">
+                    <thead>
+                        <tr class="border-b border-gray-200 text-[10px] text-gray-400 uppercase tracking-widest">
+                            <th class="py-2 font-bold">Comedor</th>
+                            <th class="py-2 font-bold">Urgencia</th>
+                            <th class="py-2 font-bold">Distancia</th>
+                            <th class="py-2 font-bold">Raciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+
+                        <tr class="bg-brand-lt/60">
+                            <td class="py-3 font-extrabold text-ink">
+                                Olla Común La Esperanza
+                                <span class="block text-[10px] text-muted font-medium mt-0.5">San Juan de Miraflores</span>
+                            </td>
+                            <td class="py-3"><span class="bg-critico/10 text-critico px-2 py-1 rounded font-extrabold text-[10px]">Emergencia</span></td>
+                            <td class="py-3 font-semibold text-muted">4.2 km</td>
+                            <td class="py-3 font-semibold text-muted">180/día</td>
+                        </tr>
+
+                        <tr>
+                            <td class="py-3 font-extrabold text-ink">
+                                Comedor Santa Rosa
+                                <span class="block text-[10px] text-muted font-medium mt-0.5">Villa María del Triunfo</span>
+                            </td>
+                            <td class="py-3"><span class="bg-alerta/10 text-alerta px-2 py-1 rounded font-extrabold text-[10px]">Alerta Crítica</span></td>
+                            <td class="py-3 font-semibold text-muted">6.5 km</td>
+                            <td class="py-3 font-semibold text-muted">150/día</td>
+                        </tr>
+
+                        <tr>
+                            <td class="py-3 font-extrabold text-ink">
+                                Comedor Las Palmeras
+                                <span class="block text-[10px] text-muted font-medium mt-0.5">Lurigancho-Chosica</span>
+                            </td>
+                            <td class="py-3"><span class="bg-ok/10 text-ok px-2 py-1 rounded font-extrabold text-[10px]">Abastecido</span></td>
+                            <td class="py-3 font-semibold text-muted">18.1 km</td>
+                            <td class="py-3 font-semibold text-muted">220/día</td>
+                        </tr>
+
+                    </tbody>
+                </table>
+
+                <button class="w-full bg-brand hover:bg-brand-dk text-white py-3 rounded-xl text-xs font-extrabold tracking-wide transition-colors shadow-sm">
+                    Confirmar Donación y Generar Código de Seguimiento
+                </button>
+            </div>
+
+            @* --- Confirmación previa con QR simulado --- *@
+            <div class="bg-brand-lt border border-brand/20 rounded-2xl p-5 flex items-center gap-5">
+                <div class="flex-none bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
+                    <div class="w-16 h-16 bg-ink flex items-center justify-center text-white text-[9px] font-mono text-center leading-tight rounded">
+                        [QR CODE]
+                    </div>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-[10px] font-extrabold text-brand tracking-widest uppercase">Código de seguimiento generado</p>
+                    <p class="font-mono font-extrabold text-lg text-ink mt-0.5">DON-2026-00421</p>
+                    <p class="text-xs text-muted mt-1">
+                        Asignado a: <span class="font-extrabold text-ink">Olla Común La Esperanza</span>
+                        • Sacos de Arroz Costeño de 50kg (x4)
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>
