@@ -29,6 +29,15 @@ public sealed record RescautaUpdate(
 ///   * RescautaUpdate es la carga de la prueba de humo: si el dev la recibe por WebSocket,
 ///     el cableado de SignalR esta bien en su maquina.
 ///
+/// Modulo Kardex (dev 2) - eventos anadidos:
+///   * <c>Kardex_UnirseAlTurno</c> / <c>Kardex_SalirDelTurno</c>: gestionan el grupo de
+///     guardia, que es quien recibe las alertas de emergencia. Los eventos de inventario
+///     llegan por el mismo hub con prefijo de modulo, asi que no colisionan con los de
+///     Mapas ni Donaciones.
+///   * El grupo es KardexTurnoGroup y el notificador es SignalRInventoryNotifier, que
+///     implementa IInventoryNotifier con este mismo IHubContext. No hay un hub por modulo:
+///     una sola conexion WebSocket por cliente, no una por cada modulo abierto.
+///
 /// Autenticacion: [AllowAnonymous] esta a proposito para el cascarón. El equipo debe
 /// decidir el mecanismo (JWT) y cambiarlo antes de exponer el hub.
 /// </summary>
@@ -46,6 +55,36 @@ public class RescautaHub : Hub
     public Task SendUpdateToGroup(string groupName, string message) => Clients.Group(groupName).SendAsync(
         "updateReceived",
         new RescautaUpdate(message, null, groupName, DateTimeOffset.UtcNow));
+
+    // ---------------------------------------------------------------------------------
+    // MODULO KARDEX (dev 2) - grupos de guardia
+    //
+    // Las alertas de emergencia no se difunden a todos: van solo al personal de turno. Un
+    // operador se une al grupo al abrir su puesto y lo abandona al cerrarlo. Sin este par
+    // de metodos, SignalRInventoryNotifier emitiria a un grupo vacio y la alerta se
+    // perderia en silencio.
+    //
+    // El nombre del grupo NO lleva el prefijo "Kardex_" porque no es un metodo: es un
+    // destino de difusion. Comparte el espacio de nombres con los grupos de los otros
+    // modulos, asi que se antepone el modulo.
+    // ---------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Grupo de guardia del modulo Kardex. Destino de las alertas de emergencia.
+    /// </summary>
+    public const string KardexTurnoGroup = "kardex.turno";
+
+    /// <summary>
+    /// Une la conexion al grupo de guardia para recibir alertas de emergencia.
+    /// El cliente lo invoca al iniciar sesion en un puesto de operador.
+    /// </summary>
+    public Task Kardex_UnirseAlTurno() => Groups.AddToGroupAsync(Context.ConnectionId, KardexTurnoGroup);
+
+    /// <summary>
+    /// Sale del grupo de guardia. Se invoca al cerrar sesion o al cambiar de turno: sin
+    /// esto, un socket abierto seguiria recibiendo alertas de un turno ya terminado.
+    /// </summary>
+    public Task Kardex_SalirDelTurno() => Groups.RemoveFromGroupAsync(Context.ConnectionId, KardexTurnoGroup);
 
     public override async Task OnConnectedAsync()
     {

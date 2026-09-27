@@ -48,9 +48,15 @@ public interface IInventoryNotifier
 /// </summary>
 public static class KardexEventos
 {
-    /// <summary>Saldo de un insumo cambiado. Servidor -> cliente.</summary>
-    public const string StockActualizado = "kardex.stock.actualizado";
+    /// <summary>
+    /// Saldo de un insumo cambiado. Servidor -&gt; cliente.
+    /// Prefijo de modulo delante, como pide la convencion del Hub compartido.
+    /// </summary>
+    public const string RecibirActualizacionInventario = "Kardex_RecibirActualizacionInventario";
 
-    /// <summary>Aviso critico para el turno. Servidor -> cliente.</summary>
-    public const string AlertaEmergencia = "kardex.alerta.emergencia";
+    /// <summary>
+    /// Aviso critico para el grupo de guardia. Servidor -&gt; cliente.
+    /// Solo lo recibe quien invoco <c>Kardex_UnirseAlTurno</c> en el hub.
+    /// </summary>
+    public const string RecibirAlertaEmergencia = "Kardex_RecibirAlertaEmergencia";
 }
