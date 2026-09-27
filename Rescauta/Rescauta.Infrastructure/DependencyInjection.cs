@@ -42,6 +42,12 @@ public static class DependencyInjection
         services.AddSingleton<CacheKeyRegistry>();
         services.AddScoped<ICacheService, RedisCacheService>();
         services.AddScoped<IRescautaNotifier, RescautaRealtimeNotifier>();
+
+        // Modulo Kardex: notificador tipado de inventario sobre el hub compartido.
+        // Singleton, no Scoped ni Transient: IHubContext<RescautaHub> es singleton con
+        // vida corta por conexion y seguro de compartir, asi que el notificador no tiene
+        // estado por peticion. Scoped crearia una instancia inútil en cada request.
+        services.AddSingleton<IInventoryNotifier, SignalRInventoryNotifier>();
         services.TryAddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
 
         AddRabbitMq(services, configuration);
