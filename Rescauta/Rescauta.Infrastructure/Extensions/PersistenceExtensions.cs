@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Rescauta.Infrastructure.Options;
 using Rescauta.Infrastructure.Persistence;
+using Rescauta.Infrastructure.Persistence.Seeding;
 
 namespace Rescauta.Infrastructure.Extensions;
 
@@ -65,22 +66,24 @@ public static class PersistenceExtensions
                     options.Provider);
 
                 await context.Database.EnsureCreatedAsync();
-
-                return;
             }
-
-            var pending = context.Database.GetPendingMigrations().ToArray();
-
-            if (pending.Length == 0)
+            else
             {
-                logger.LogInformation("La base de datos esta al dia. Migraciones pendientes: 0.");
+                var pending = context.Database.GetPendingMigrations().ToArray();
 
-                return;
+                if (pending.Length == 0)
+                {
+                    logger.LogInformation("La base de datos esta al dia. Migraciones pendientes: 0.");
+
+                    return;
+                }
+
+                logger.LogInformation("Aplicando {Count} migracion(es) pendiente(s).", pending.Length);
+
+                await context.Database.MigrateAsync();
             }
 
-            logger.LogInformation("Aplicando {Count} migracion(es) pendiente(s).", pending.Length);
-
-            await context.Database.MigrateAsync();
+            await SembrarSiCorrespondeAsync(context, services, options, logger);
         }
         catch (Exception ex)
         {
@@ -88,5 +91,28 @@ public static class PersistenceExtensions
             // se registra y se sigue, para que el dev pueda corregir la configuracion.
             logger.LogError(ex, "No se pudieron aplicar las migraciones. Revisar Database:Provider y Database:ConnectionString.");
         }
+    }
+
+    /// <summary>
+    /// Siembra datos de ejemplo, pero solo si <c>Database:SeedOnStartup</c> esta activo.
+    /// Se invoca DESPUES de crear o migrar el esquema, porque siembra por EF Core y
+    /// necesita las tablas_existentes.
+    /// </summary>
+    private static async Task SembrarSiCorrespondeAsync(
+        AppDbContext context,
+        IServiceProvider services,
+        DatabaseOptions options,
+        ILogger logger)
+    {
+        if (!options.SeedOnStartup)
+        {
+            return;
+        }
+
+        var seederLogger = services
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger(typeof(DatabaseSeeder).FullName!);
+
+        await DatabaseSeeder.SeedAsync(context, seederLogger);
     }
 }

@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Rescauta.Application.Interfaces;
 using Rescauta.Domain.Common;
+using Rescauta.Infrastructure.Persistence.Converters;
 
 namespace Rescauta.Infrastructure.Persistence;
 
@@ -55,6 +56,20 @@ public class AppDbContext : DbContext, IAppDbContext
         {
             return false;
         }
+    }
+
+    /// <inheritdoc />
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // Global y por preconvencion: SQLite no ordena por DateTimeOffset y el fallo
+        // sale como NotSupportedException al traducir la consulta. Guardar en UTC
+        // resuelve los tres proveedores de una vez, sin tocar entidad por entidad.
+        // Ver Persistence/Converters/UtcDateTimeOffsetConverter.cs.
+        configurationBuilder.Properties<DateTimeOffset>()
+            .HaveConversion<UtcDateTimeOffsetConverter>();
+
+        configurationBuilder.Properties<DateTimeOffset?>()
+            .HaveConversion<UtcDateTimeOffsetNullableConverter>();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

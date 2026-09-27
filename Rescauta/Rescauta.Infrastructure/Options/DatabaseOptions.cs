@@ -18,4 +18,10 @@ public sealed class DatabaseOptions
     public bool EnableSensitiveDataLogging { get; set; }
 
     public bool MigrateOnStartup { get; set; }
+
+    /// <summary>
+    /// Siembra comedores e insumos de ejemplo cuando la base esta vacia. Dejarlo en
+    /// false en cualquier entorno compartido: es solo para el clone de desarrollo local.
+    /// </summary>
+    public bool SeedOnStartup { get; set; }
 }

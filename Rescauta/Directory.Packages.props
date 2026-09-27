@@ -38,6 +38,10 @@
     <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="8.0.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Infrastructure - Generacion de codigos QR de donacion">
+    <PackageVersion Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Infrastructure - Salud y diagnostico">
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="$(EfCoreVersion)" />
   </ItemGroup>

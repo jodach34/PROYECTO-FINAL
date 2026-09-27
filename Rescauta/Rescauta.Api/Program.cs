@@ -113,6 +113,11 @@ builder.Services
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+
+        // Los enums viajan como texto ("Emergencia", "Recibida"), no como numeros.
+        // Sin esto, EstadoDonacion sale como 1 y el front tiene que mantener una tabla
+        // de equivalencias que se desincroniza en cuanto alguien agrega un valor.
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
 var apiVersioning = builder.Services.AddApiVersioning(options =>

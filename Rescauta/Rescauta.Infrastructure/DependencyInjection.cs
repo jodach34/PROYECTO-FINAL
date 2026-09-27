@@ -5,11 +5,14 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Rescauta.Application.Interfaces;
 using Rescauta.Application.Interfaces.Caching;
 using Rescauta.Application.Interfaces.RealTime;
+using Rescauta.Domain.Repositories;
 using Rescauta.Infrastructure.Caching;
 using Rescauta.Infrastructure.Options;
 using Rescauta.Infrastructure.Persistence;
 using Rescauta.Infrastructure.Persistence.Interceptors;
+using Rescauta.Infrastructure.Persistence.Repositories;
 using Rescauta.Infrastructure.RealTime;
+using Rescauta.Infrastructure.Services;
 
 namespace Rescauta.Infrastructure;
 
@@ -41,6 +44,16 @@ public static class DependencyInjection
         services.AddScoped<ICacheService, RedisCacheService>();
         services.AddScoped<IRescautaNotifier, RescautaRealtimeNotifier>();
         services.TryAddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
+
+        // Adaptadores de las abstracciones de Domain. Todos Scoped porque dependen del
+        // DbContext scoped: un singleton aqui compartiria estado entre peticiones.
+        services.TryAddScoped<IComedorRepository, ComedorRepository>();
+        services.TryAddScoped<IKardexRepository, KardexRepository>();
+        services.TryAddScoped<IDonacionRepository, DonacionRepository>();
+
+        // Generador de QR de donacion. Scoped aunque sea stateless, para no tener que
+        // recordar que es seguro como singleton si mañana cachea un HttpClient.
+        services.TryAddScoped<IQrGeneratorService, QrGeneratorService>();
 
         services.AddDbContext<AppDbContext>((provider, options) =>
             ConfigureDatabase(options, configuration, provider));

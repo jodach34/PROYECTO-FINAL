@@ -35,6 +35,11 @@ public static class DependencyInjection
 
         services.TryAddScoped<ISystemReadinessService, SystemReadinessService>();
 
+        // Politica de negocio del panel: dias de stock critico. Scoped porque es
+        // stateless y por si manana necesita leer configuracion por tenant.
+        services.TryAddScoped<IUrgenciaCalculadorService, UrgenciaCalculadorService>();
+    services.TryAddScoped<IKardexService, KardexService>();
+
         services.Configure<JsonSerializerOptions>(options =>
         {
             options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
