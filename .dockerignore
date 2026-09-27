@@ -1,0 +1,42 @@
+# =============================================================================
+# Contexto de build del Dockerfile.
+# Cada linea que se lista aqui NO entra en la imagen, lo que acelera el build y
+# evita que un artefacto de tu maquina pise al generado dentro del contenedor.
+# =============================================================================
+
+# Historial y metadatos de Git: puede pesar hundreds of MB y no se usa para compilar.
+.git
+.gitignore
+.gitattributes
+
+# Artefactos de compilacion. CRITICO en este repo: la carpeta obj/ de la raiz
+# esta versionada en Git, asi que sin estas reglas entraria al contexto un
+# project.assets.json con rutas absolutas de otra maquina y el restore fallaria.
+**/bin/
+**/obj/
+obj/
+bin/
+*.user
+*.suo
+
+# Bases de datos locales de desarrollo.
+*.db
+*.db-shm
+*.db-wal
+
+# Editores y sistema operativo.
+.vs/
+.vscode/
+.idea/
+**/.DS_Store
+Thumbs.db
+
+# -----------------------------------------------------------------------------
+# Proyecto MVC legacy de la raiz (PROYECTO-FINAL).
+# No forma parte de Rescauta.sln ni de la Web API: es el prototipo con vistas del
+# commit 792f36e. Se excluye para que el build no lo confunda con la API.
+# -----------------------------------------------------------------------------
+/PROYECTO-FINAL.csproj
+/RescautaApp.csproj
+/Program.cs
+/Views/
