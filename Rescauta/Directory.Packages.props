@@ -35,7 +35,6 @@
   <ItemGroup Label="Infrastructure - Redis / Cache distribuida">
     <PackageVersion Include="StackExchange.Redis" Version="2.13.17" />
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="$(EfCoreVersion)" />
-    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Infrastructure - Salud y diagnostico">

@@ -1,74 +1,113 @@
 # =============================================================================
 # Rescauta - Dockerfile multi-stage
 #
-# Se despliega en Render con:
-#   Build Command : (vacío - Render detecta el Dockerfile)
-#   Start Command : (vacío - usa el ENTRYPOINT de este archivo)
+# Deploy en Render:
+#   Root Directory  : la raiz del repo (la que contiene esta Dockerfile y la carpeta Rescauta/)
+#   Dockerfile Path : Dockerfile
+#   Build Command   : (vacio - Render usa este Dockerfile)
+#   Start Command   : (vacio - usa el ENTRYPOINT)
 #
-# Contexto de build: la RAÍZ del repositorio, porque la solución vive en Rescauta/.
-# En Render: Root Directory = "." (raíz) para que el contexto incluya la carpeta Rescauta/.
+# -----------------------------------------------------------------------------
+# POR QUE ESTE ARCHIVO NORMALIZA EL LAYOUT EN LA CAPA 0
 #
-# OJO con las versiones: la imagen SDK debe coincidir EXACTAMENTE con el
-# TargetFramework de Rescauta/Directory.Build.props. Hoy es net8.0. Si ese archivo
-# pasa a net10.0, hay que subir AMBAS imágenes a 10.0 o el build falla con NETSDK1045
-# ("The current .NET SDK does not support targeting .NET X.0").
+# En Render, "Root Directory" decide a la vez DONDE se busca el Dockerfile y CUAL es el
+# contexto de build. Si se deja en la raiz, el contexto contiene "Rescauta/Rescauta.sln".
+# Si alguien lo cambia a "Rescauta" (porque ve la solucion ahi), el contexto PASa a ser la
+# carpeta Rescauta/ y el archivo se llama "Rescauta.sln", sin carpeta delante. Con un
+# Dockerfile de rutas fijas, el build revienta con:
+#     COPY failed: file not found in build context: stat Rescauta/Rescauta.sln
+#
+# La capa 0 copia el contexto entero y lo aplana a /src segun detecte cual de los dos
+# layouts llego. A partir de ahi, TODAS las rutas del Dockerfile son relativas a /src y son
+# iguales en los dos casos. Asi el deploy no vuelve a depender de un ajuste de la UI.
+#
+# -----------------------------------------------------------------------------
+# VERSIONES DE LAS IMAGENES
+#
+# La imagen SDK debe coincidir EXACTAMENTE con el TargetFramework de
+# Rescauta/Directory.Build.props. Tras el merge de Donaciones ese archivo quedo en
+# net10.0, asi que las imagenes van en 10.0. Si se vuelve a bajar el TFM a net8.0,
+# hay que bajar ESTAS DOS imagenes a 8.0 o el build falla con NETSDK1045.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Stage 1: build. Solo queda en la capa de imágenes intermedia; no llega a producción.
+# Stage 1: build. Se descarta; no llega a la imagen final.
 # -----------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# --- Capa 1: SOLO los archivos de proyecto -----------------------------------
-# Se copian primero y se restauran aparte a proposito. El restore de NuGet solo
-# depende de los .csproj, asi que mientras estos no cambien Docker reutiliza la
-# capa cacheada y no vuelve a descargar paquetes en cada build. Si se copiara todo
-# el codigo antes de restaurar, cada cambio de una linea invalidaria el restore.
-COPY Rescauta/Directory.Build.props Rescauta/Directory.Packages.props ./
-COPY Rescauta/Rescauta.sln ./
-COPY Rescauta/Rescauta.Domain/Rescauta.Domain.csproj Rescauta/Rescauta.Domain/
-COPY Rescauta/Rescauta.Application/Rescauta.Application.csproj Rescauta/Rescauta.Application/
-COPY Rescauta/Rescauta.Infrastructure/Rescauta.Infrastructure.csproj Rescauta/Rescauta.Infrastructure/
-COPY Rescauta/Rescauta.Api/Rescauta.Api.csproj Rescauta/Rescauta.Api/
+# --- Capa 0: normalizar el layout ---------------------------------------------
+COPY . /tmp/ctx
 
-# Se restaura la SOLUCION (no un proyecto suelto) para que los 4 proyectos queden
-# resueltos, incluidas las referencias entre ellos.
-RUN dotnet restore Rescauta/Rescauta.sln
+RUN set -eux; \
+    if [ -f "/tmp/ctx/Rescauta/Rescauta.sln" ]; then \
+        echo ">> Contexto = raiz del repo. Aplanando Rescauta/ hacia /src"; \
+        cp -a /tmp/ctx/Rescauta/. /src/; \
+    elif [ -f "/tmp/ctx/Rescauta.sln" ]; then \
+        echo ">> Contexto = carpeta Rescauta/. Copiando directo a /src"; \
+        cp -a /tmp/ctx/. /src/; \
+    else \
+        echo "!! No se encontro ninguna .sln. Rutas candidatas:"; \
+        find /tmp/ctx -maxdepth 3 -name "*.sln" -print; \
+        exit 1; \
+    fi; \
+    rm -rf /tmp/ctx; \
+    # Los bin/obj del host se descartan: su project.assets.json apunta a rutas
+    # absolutas de otra maquina y rompe el restore.
+    find /src -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} + ; \
+    ls -la /src
 
-# --- Capa 2: el codigo fuente ------------------------------------------------
-COPY Rescauta/ ./
+# --- Capa 1: solo los .csproj, para cachear el restore ------------------------
+# El restore de NuGet solo depende de los .csproj. Mientras no cambien, Docker reutiliza
+# esta capa y no vuelve a descargar paquetes. Copiar el codigo antes de restaurar
+# haria que cada cambio de una sola linea invalidara el restore completo.
+COPY Directory.Build.props Directory.Packages.props Rescauta.sln ./
+COPY Rescauta.Domain/Rescauta.Domain.csproj Rescauta.Domain/
+COPY Rescauta.Application/Rescauta.Application.csproj Rescauta.Application/
+COPY Rescauta.Infrastructure/Rescauta.Infrastructure.csproj Rescauta.Infrastructure/
+COPY Rescauta.Api/Rescauta.Api.csproj Rescauta.Api/
 
-# --no-restore: el restore ya se hizo arriba y no debe repetirse.
-# /p:UseAppHost=false: no genera el ejecutable nativo; en Linux el runtime ejecuta
-# la DLL con "dotnet", y el apphost solo anadiria peso.
-RUN dotnet publish Rescauta/Rescauta.Api/Rescauta.Api.csproj \
+# Se restaura la SOLUCION entera, no un proyecto suelto, para que las referencias entre
+# los 4 proyectos queden resueltas.
+RUN dotnet restore Rescauta.sln
+
+# --- Capa 2: el codigo fuente --------------------------------------------------
+# Se copian carpeta por carpeta y no con "COPY . ." a proposito: un COPY de todo el
+# contexto volveria a traer un arbol anidado Rescauta/ dentro de /src y duplicaria todo.
+COPY Rescauta.Domain/ Rescauta.Domain/
+COPY Rescauta.Application/ Rescauta.Application/
+COPY Rescauta.Infrastructure/ Rescauta.Infrastructure/
+COPY Rescauta.Api/ Rescauta.Api/
+
+# --no-restore: el restore ya se resolvio en la capa 1 y no debe repetirse.
+# UseAppHost=false: no genera el ejecutable nativo; en Linux el runtime ejecuta la DLL.
+RUN dotnet publish Rescauta.Api/Rescauta.Api.csproj \
         --configuration Release \
         --no-restore \
         --output /app/publish \
         /p:UseAppHost=false
 
 # -----------------------------------------------------------------------------
-# Stage 2: runtime. Imagen de runtime, no de SDK: no lleva el compilador, ni
-# Roslyn, ni el package manager. Es la diferencia de tamaño mas grande posible.
+# Stage 2: runtime. Imagen de runtime, no de SDK: sin compilador, sin Roslyn y sin
+# package manager. Es la mayor reduccion de tamano posible.
 # -----------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 COPY --from=build /app/publish ./
 
-# --- Red ---------------------------------------------------------------------
-# "+" en 0.0.0.0 es imprescindible: si se dejara solo "http://:8080" el Kestrel
-# escucharia unicamente en loopback y Render no llegaria al contenedor.
+# --- Red ----------------------------------------------------------------------
+# El "+" es imprescindible: con "http://:8080" Kestrel escucharia solo en loopback y
+# Render no alcanzaria el contenedor.
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 
-# --- Usuario sin privilegios --------------------------------------------------
-# La imagen de runtime .NET 8 ya define APP_UID. Ejecutar como root es
-# innecesario: un incidente en la app no da acceso al host.
+# --- Usuario sin privilegios ---------------------------------------------------
+# La imagen de runtime .NET define APP_UID. Ejecutar como root es innecesario: un
+# incidente en la app no debe dar acceso al host.
 USER $APP_UID
 
 # El entrypoint apunta al ensamblado que produce el proyecto Rescauta.Api.
