@@ -7,4 +7,22 @@
     <RootNamespace>PROYECTO_FINAL</RootNamespace>
   </PropertyGroup>
 
+  <!--
+    La solucion Clean Architecture vive en Rescauta/ y se compila aparte, con
+    Rescauta/Rescauta.sln. Este proyecto es el MVC legacy de las vistas.
+
+    Sin estas exclusiones, los globs por defecto de este proyecto (que son **/*.cs)
+    se comen el Program.cs de la API y los obj/ de los proyectos anidados, y la
+    compilacion falla con CS8802 ("Solo una unidad de compilacion puede tener
+    instrucciones de nivel superior") y CS0579 (atributos de ensamblado
+    duplicados). El sintoma aparece al compilar desde la raiz del repo, no al
+    compilar la solucion .sln, que por eso lo escondia.
+  -->
+  <ItemGroup>
+    <Compile Remove="Rescauta\**" />
+    <Content Remove="Rescauta\**" />
+    <None Remove="Rescauta\**" />
+    <EmbeddedResource Remove="Rescauta\**" />
+  </ItemGroup>
+
 </Project>
