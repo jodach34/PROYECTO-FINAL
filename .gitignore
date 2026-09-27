@@ -1,0 +1,45 @@
+## Build
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+## .NET
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.cache
+.vs/
+.vscode/
+.idea/
+
+## Razor/Generated
+GeneratedMSBuildEditorConfig.editorconfig
+*.AssemblyInfo.cs
+*.AssemblyInfoInputs.cache
+*.assets.cache
+*.nuget.dgspec.json
+*.nuget.g.props
+*.nuget.g.targets
+*.RazorAssemblyInfo.*
+*.GlobalUsings.g.cs
+
+## Logs
+*.log
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Env
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.*.Local.json
+
+## Misc
+*.swp
+*.bak
+*.tmp
