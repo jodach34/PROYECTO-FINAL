@@ -72,7 +72,12 @@ public static class DependencyInjection
         var settings = configuration.GetSection(RabbitMqOptions.SectionName).Get<RabbitMqOptions>()
                        ?? new RabbitMqOptions();
 
-        if (!settings.Enabled)
+        // Habilitada exige las DOS cosas: Enabled en true y una URI real. Con Enabled en true
+        // y la cadena vacia no hay broker al que conectarse, y RabbitMqEventBus avisaria por
+        // log en cada publicacion. Se registra NullEventBus para que el modulo publish sin
+        // enterarse de que no hay mensajeria, que es el mismo contrato en los dos casos.
+        if (!settings.Enabled ||
+            string.IsNullOrWhiteSpace(configuration.GetConnectionString("RabbitMq")))
         {
             services.TryAddScoped<IEventBus, NullEventBus>();
 

@@ -10,6 +10,13 @@ namespace Rescauta.Application.Services;
 ///   * depender solo de interfaces definidas en Application/Interfaces,
 ///   * recibir las dependencias por constructor,
 ///   * no tocar Infrastructure ni ASP.NET Core.
+///
+/// Sobre <c>IsReady</c>: lo decide SOLO la base de datos, no la cache. La cache es una
+/// optimizacion, no un requisito: sin ella el sistema lee y escribe igual, solo mas lento.
+/// Si IsReady exigiera tambien la cache, un Redis caido devolveria 503 y el orquestador
+/// reiniciaria pods que funcionan perfectamente, tirando abajo el servicio por un problema
+/// que no afecta la disponibilidad. El estado de la cache sigue viajando en
+/// <c>CacheAvailable</c> y en <c>Details</c> para diagnóstico, que es donde sirve.
 /// </summary>
 public sealed class SystemReadinessService(
     IAppDbContext dbContext,
@@ -33,7 +40,7 @@ public sealed class SystemReadinessService(
             cacheAvailable);
 
         return new ReadinessReport(
-            databaseAvailable && cacheAvailable,
+            databaseAvailable,
             databaseAvailable,
             cacheAvailable,
             dbContext.Database.ProviderName ?? "desconocido",

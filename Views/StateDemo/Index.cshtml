@@ -1,0 +1,309 @@
+@model StateDemoViewModel
+@{
+    ViewData["Title"] = "Estado y Sesion";
+    Layout = null;
+
+    // La URL del hub se arma aqui y no en el JavaScript, para que al desplegar solo haya
+    // que cambiar "Api:BaseUrl" en appsettings.json. El hub vive en la API, no en el MVC.
+    var apiBase = (ViewData["ApiBaseUrl"] as string ?? string.Empty).TrimEnd('/');
+    var hubUrl = $"{apiBase}/hubs/rescauta";
+    var nombreInsumo = ViewData["InsumoDemoNombre"] as string;
+}
+
+@await Html.PartialAsync("_RescautaHead")
+
+<body class="bg-canvas min-h-screen text-ink antialiased">
+
+    @await Html.PartialAsync("_RescautaNav", "estado")
+
+    <div class="max-w-6xl mx-auto px-6 py-8">
+
+        @* ---------- TEMPDATA: el aviso de la peticion anterior ---------- *@
+        @if (Model.Aviso is not null)
+        {
+            <div class="mb-6 px-4 py-3 rounded-xl bg-ok/10 border border-ok/25 text-xs text-ok font-semibold flex items-start gap-2" role="status">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="flex-none mt-px"><path d="M20 6 9 17l-5-5" /></svg>
+                <span>
+                    <strong class="block mb-0.5">TempData (se autodestruye)</strong>
+                    @Model.Aviso
+                </span>
+            </div>
+        }
+
+        <h1 class="text-xl font-extrabold text-ink">Estado entre peticiones</h1>
+        <p class="text-xs text-muted mt-1 mb-7 max-w-3xl leading-relaxed">
+            Las cuatro mecanismos de estado que guarda el framework, uno al lado del otro para
+            poder compararlos. La diferencia de fondo: <strong>la cookie vive en el navegador</strong>,
+            <strong>la sesi&oacute;n y TempData viven en el servidor</strong>, y ViewData solo dura
+            la peticion.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+
+            @* ================= 1. VIEWDATA ================= *@
+            <section class="bg-white rounded-xl shadow-card border border-gray-200 p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-xs font-extrabold text-ink uppercase tracking-wide">1. ViewData</h2>
+                    <span class="px-2 py-0.5 rounded bg-gray-100 text-muted text-[9px] font-extrabold uppercase">1 request</span>
+                </div>
+                <p class="text-[11px] text-muted leading-relaxed mb-3">
+                    Un <code class="text-[10px] text-brand">Dictionary&lt;string, object&gt;</code> que el
+                    controller llena y la vista lee. Muere al terminar la peticion: en la siguiente
+                    pagina ya no existe.
+                </p>
+                <table class="w-full text-[10px]">
+                    <tr class="border-b border-gray-100">
+                        <td class="py-1 text-muted font-semibold">Title</td>
+                        <td class="py-1 text-ink font-mono text-right">@ViewData["Title"]</td>
+                    </tr>
+                    <tr class="border-b border-gray-100">
+                        <td class="py-1 text-muted font-semibold">ApiBaseUrl</td>
+                        <td class="py-1 text-ink font-mono text-right truncate">@apiBase</td>
+                    </tr>
+                </table>
+            </section>
+
+            @* ================= 2. TEMPDATA ================= *@
+            <section class="bg-white rounded-xl shadow-card border border-gray-200 p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-xs font-extrabold text-ink uppercase tracking-wide">2. TempData</h2>
+                    <span class="px-2 py-0.5 rounded bg-gray-100 text-muted text-[9px] font-extrabold uppercase">1 redirect</span>
+                </div>
+                <p class="text-[11px] text-muted leading-relaxed mb-3">
+                    Como ViewData, pero <strong>sobrevive a un redirect</strong> y se borra en cuanto
+                    se lee. Es el canal de los avisos: por eso el flujo es POST &rarr; redirect &rarr;
+                    GET (PRG). Sin redirect, el aviso se perder&iacute;a.
+                </p>
+                <p class="text-[10px] text-muted leading-relaxed">
+                    Estado actual:
+                    @if (Model.Aviso is null)
+                    {
+                        <span class="text-muted font-mono">(vac&iacute;o, ya se le&iacute;o)</span>
+                    }
+                    else
+                    {
+                        <span class="text-ok font-mono">(pendiente de leerse)</span>
+                    }
+                </p>
+            </section>
+
+            @* ================= 3. SESSION ================= *@
+            <section class="bg-white rounded-xl shadow-card border border-ink/15 p-5 ring-1 ring-ink/5">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-xs font-extrabold text-ink uppercase tracking-wide">3. Session</h2>
+                    <span class="px-2 py-0.5 rounded bg-ink text-white text-[9px] font-extrabold uppercase">30 min</span>
+                </div>
+                <p class="text-[11px] text-muted leading-relaxed mb-3">
+                    Se guarda en el <strong>servidor</strong>; el navegador solo lleva un id en la
+                    cookie <code class="text-[10px] text-brand">.Rescauta.Session</code>. Se renueva
+                    en cada peticion (<em>sliding</em>), asi que no se pierde a mitad de turno.
+                </p>
+                <table class="w-full text-[10px]">
+                    <tr class="border-b border-gray-100">
+                        <td class="py-1 text-muted font-semibold">Visitas (servidor)</td>
+                        <td class="py-1 text-ink font-mono text-right font-bold">@Model.VisitasServidor</td>
+                    </tr>
+                    <tr class="border-b border-gray-100">
+                        <td class="py-1 text-muted font-semibold">Turno</td>
+                        <td class="py-1 text-ink font-mono text-right">@Model.Turno</td>
+                    </tr>
+                    <tr>
+                        <td class="py-1 text-muted font-semibold">Comedor activo</td>
+                        <td class="py-1 text-ink font-mono text-right truncate">@Model.ComedorActivo</td>
+                    </tr>
+                </table>
+            </section>
+
+            @* ================= 4. COOKIES ================= *@
+            <section class="bg-white rounded-xl shadow-card border border-gray-200 p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-xs font-extrabold text-ink uppercase tracking-wide">4. Cookies</h2>
+                    <span class="px-2 py-0.5 rounded bg-gray-100 text-muted text-[9px] font-extrabold uppercase">Cliente</span>
+                </div>
+                <p class="text-[11px] text-muted leading-relaxed mb-3">
+                    Lo unico que guarda el <strong>navegador</strong>. Se ven en
+                    <code class="text-[10px] text-brand">F12 &gt; Application &gt; Cookies</code>.
+                    Topo de 4 KB, por eso aqui solo van valores cortos.
+                </p>
+                <table class="w-full text-[10px]">
+                    <tr class="border-b border-gray-100">
+                        <td class="py-1 text-muted font-semibold">Visitas (cookie)</td>
+                        <td class="py-1 text-ink font-mono text-right font-bold">@Model.VisitaActual</td>
+                    </tr>
+                    <tr class="border-b border-gray-100">
+                        <td class="py-1 text-muted font-semibold">Operador</td>
+                        <td class="py-1 text-ink font-mono text-right truncate">@(string.IsNullOrEmpty(Model.OperadorGuardado) ? "(vacio)" : Model.OperadorGuardado)</td>
+                    </tr>
+                    <tr>
+                        <td class="py-1 text-muted font-semibold">&Uacute;ltima visita</td>
+                        <td class="py-1 text-ink font-mono text-right">@Model.UltimaVisita</td>
+                    </tr>
+                </table>
+            </section>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+            @* ================= FORMULARIO: cookie + session + tempdata ================= *@
+            <section class="bg-white rounded-xl shadow-card border border-gray-200 p-6">
+                <h2 class="text-sm font-extrabold text-ink mb-1">Escribir estado</h2>
+                <p class="text-[11px] text-muted leading-relaxed mb-4">
+                    Un solo formulario que escribe en los tres sitios a la vez. Al guardar,
+                    redirige: ese redirect es lo que permite que TempData llegue a la vista.
+                </p>
+
+                <form asp-controller="StateDemo" asp-action="Guardar" method="post" class="space-y-3">
+                    <div>
+                        <label for="operador" class="block text-[10px] font-bold text-muted uppercase tracking-wider mb-1.5">
+                            Nombre del operador &rarr; cookie
+                        </label>
+                        <input type="text" id="operador" name="operador" value="@Model.OperadorGuardado"
+                               placeholder="Maria Elena S."
+                               class="w-full bg-canvas text-xs px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand/30" />
+                    </div>
+
+                    <div>
+                        <label for="turno" class="block text-[10px] font-bold text-muted uppercase tracking-wider mb-1.5">
+                            Turno &rarr; session
+                        </label>
+                        <select id="turno" name="turno"
+                                class="w-full bg-canvas text-xs px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand/30">
+                            @foreach (var t in new[] { "Manana", "Tarde", "Noche" })
+                            {
+                                <option value="@t" selected="@(Model.Turno == t)">@t</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="comedorId" class="block text-[10px] font-bold text-muted uppercase tracking-wider mb-1.5">
+                            Comedor que est&aacute;s mirando &rarr; session
+                        </label>
+                        <select id="comedorId" name="comedorId"
+                                class="w-full bg-canvas text-xs px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand/30">
+                            <option value="">-- ninguno --</option>
+                            @if (Model.ComedorActivo != "(ninguno)")
+                            {
+                                <option value="@Model.ComedorActivo" selected>@Model.ComedorActivo</option>
+                            }
+                        </select>
+                        <p class="text-[10px] text-muted mt-1">
+                            Es el caso real: en el Panel de Control el operador cambia de comedor y al
+                            volver al mapa quiere seguir en el mismo, no en el primero de la lista.
+                        </p>
+                    </div>
+
+                    <div class="flex items-center gap-2 pt-1">
+                        <button type="submit"
+                                class="px-4 py-2 rounded-lg bg-brand hover:bg-brand-dk text-white text-[10px] font-extrabold uppercase tracking-wide transition-colors shadow-sm">
+                            Guardar y redirigir
+                        </button>
+                        <button type="submit" asp-controller="StateDemo" asp-action="CerrarSesion"
+                                class="px-3 py-2 rounded-lg bg-white text-ink border border-gray-300 hover:bg-canvas text-[10px] font-extrabold uppercase tracking-wide transition-colors">
+                            Vaciar Session
+                        </button>
+                    </div>
+                </form>
+
+                <div class="mt-6 pt-5 border-t border-gray-100">
+                    <h3 class="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">
+                        Todas las cookies de esta peticion
+                    </h3>
+                    <div class="bg-canvas rounded-lg p-3 max-h-48 overflow-y-auto">
+                        <table class="w-full text-[10px]">
+                            @foreach (var cookie in Model.Cookies.OrderBy(c => c.Key))
+                            {
+                                <tr class="border-b border-gray-200/60 last:border-0">
+                                    <td class="py-1 pr-2 text-ink font-mono font-semibold">@cookie.Key</td>
+                                    <td class="py-1 text-muted font-mono truncate" title="@cookie.Value">@cookie.Value</td>
+                                </tr>
+                            }
+                            @if (Model.Cookies.Count == 0)
+                            {
+                                <tr><td class="py-1 text-muted">(ninguna todavia)</td></tr>
+                            }
+                        </table>
+                    </div>
+                    <p class="text-[10px] text-muted mt-2 leading-relaxed">
+                        @Html.Raw("&aacute;sta es la lista que ves en F12. F&iacute;jate en las que empiezan por punto: las escribi&oacute; el framework, no el c&oacute;digo de la aplicaci&oacute;n.")
+                    </p>
+                    <a href="@Url.Action("Token", "StateDemo")" target="_blank" rel="noopener"
+                       class="inline-block mt-2 text-[10px] text-brand font-bold underline hover:no-underline">
+                        Ver el token de antiforgery &rarr;
+                    </a>
+                </div>
+            </section>
+
+            @* ================= 5. WEBSOCKET / SIGNALR ================= *@
+            <section id="hub-panel"
+                     class="bg-white rounded-xl shadow-card border border-gray-200 p-6"
+                     data-hub-url="@hubUrl"
+                     data-api-base="@apiBase + "/" >
+
+                <div class="flex items-start justify-between gap-3 mb-1">
+                    <h2 class="text-sm font-extrabold text-ink">5. WebSocket (SignalR)</h2>
+                    <span id="hub-estado" class="px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wide bg-gray-100 text-muted">
+                        Sin iniciar
+                    </span>
+                </div>
+
+                <p class="text-[11px] text-muted leading-relaxed mb-4">
+                    Un socket abierto contra el hub de la API
+                    (<code class="text-[10px] text-brand">@hubUrl</code>). A diferencia de las otras
+                    cuatro, este canal <strong>no lo pide el servidor</strong>: el servidor empuja el
+                    evento en cuanto ocurre, sin que el navegador pregunte nada.
+                </p>
+
+                <div class="flex flex-wrap items-center gap-2 mb-4">
+                    <button id="hub-probar" type="button"
+                            class="px-3 py-1.5 rounded-lg bg-brand text-white hover:bg-brand-dk text-[10px] font-extrabold uppercase tracking-wide transition-colors">
+                        Probar eco
+                    </button>
+                    <button id="hub-turno" type="button" data-unido="false"
+                            class="px-3 py-1.5 rounded-lg bg-white text-ink border border-gray-300 hover:bg-canvas text-[10px] font-extrabold uppercase tracking-wide transition-colors">
+                        Unirse al turno
+                    </button>
+                    @if (Model.InsumoDemo is not null)
+                    {
+                        <button id="hub-mover" type="button" data-insumo-id="@Model.InsumoDemo"
+                                class="px-3 py-1.5 rounded-lg bg-white text-ink border border-gray-300 hover:bg-canvas text-[10px] font-extrabold uppercase tracking-wide transition-colors"
+                                title="POST /api/v1/donaciones contra @nombreInsumo">
+                            Donar 10 y ver el evento
+                        </button>
+                    }
+                </div>
+
+                @if (Model.InsumoDemo is null)
+                {
+                    <p class="text-[10px] text-alerta bg-alerta/10 border border-alerta/25 rounded-lg px-3 py-2 mb-4">
+                        No hay insumos registrados (o la API no responde), asi que el boton de
+                        donaci&oacute;n no se muestra. Los otros dos botones no necesitan la base de datos.
+                    </p>
+                }
+                else
+                {
+                    <p class="text-[10px] text-muted mb-4">
+                        El tercero hace el circuito completo: <code>POST /api/v1/donaciones</code>
+                        &rarr; la API escribe en SQLite &rarr; emite el evento &rarr; llega por el
+                        WebSocket sin recargar nada. Insumo: <strong>@nombreInsumo</strong>.
+                    </p>
+                }
+
+                <div class="bg-canvas rounded-lg border border-gray-200 px-3 py-2">
+                    <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Eventos recibidos</p>
+                    <ul id="hub-eventos" class="max-h-56 overflow-y-auto">
+                        <li class="py-2 text-[11px] text-muted">Los eventos del hub aparecer&aacute;n aqu&iacute;.</li>
+                    </ul>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    @* signalR.js desde el CDN. El hub vive en la API, pero la libreria la carga el MVC.
+       El "@" del paquete va escrito como "&#64;": en Razor un "@" suelto abre una expresion
+       y el "@microsoft" se intentaria compilar como codigo C#.
+       Si se quiere sin CDN, se copia signalr.min.js a wwwroot/lib y se cambia esta linea. *@
+    <script src="https://cdn.jsdelivr.net/npm/&#64;microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+    <script src="~/js/rescauta-hub.js" asp-append-version="true"></script>
+</body>
+</html>

@@ -110,6 +110,45 @@ public class DonacionViewModel
 }
 
 /// <summary>
+/// Estado y Sesion: lo que hay guardado en la cookie, en la sesion del servidor y en
+/// TempData, para poder compararlos lado a lado.
+///
+/// <see cref="Cookies"/> se trae el dictionary crudo de la peticion. Es lo que ve el
+/// navegador entero, incluidas las cookies de antiforgery y de sesion: por eso esta pagina
+/// sirve tambien para ver, con mis propios ojos, cuales ha ido dejando el framework.
+/// </summary>
+public sealed record StateDemoViewModel
+{
+    /// <summary>Contador que vive en la cookie del cliente.</summary>
+    public int VisitaActual { get; init; }
+
+    /// <summary>Contador que vive en la sesion del servidor.</summary>
+    public int VisitasServidor { get; init; }
+
+    public string Turno { get; init; } = string.Empty;
+
+    public string ComedorActivo { get; init; } = string.Empty;
+
+    public string OperadorGuardado { get; init; } = string.Empty;
+
+    public string UltimaVisita { get; init; } = string.Empty;
+
+    /// <summary>Aviso que venia en TempData desde el request anterior, si habia.</summary>
+    public string? Aviso { get; init; }
+
+    public IReadOnlyDictionary<string, string> Cookies { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>
+    /// Un insumo real de la red, para el boton que hace el POST de prueba contra la API.
+    /// Es null si la API no responde o si no hay ninguno registrado, y la vista lo oculta:
+    /// un boton que va a fallar no debe aparecer.
+    /// </summary>
+    public Guid? InsumoDemo { get; init; }
+
+    public string? InsumoDemoNombre { get; init; }
+}
+
+/// <summary>
 /// Reglas de presentacion compartidas por las tres pantallas.
 ///
 /// Son metodos estaticos y no un servicio: no dependen de nada y convertirlos en injected

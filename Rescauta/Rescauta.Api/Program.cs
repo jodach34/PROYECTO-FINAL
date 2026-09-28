@@ -65,41 +65,56 @@ builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // -----------------------------------------------------------------------------
-// 4. Redis - cache distribuida.
+// 4. Cache distribuida.
 //    AddStackExchangeRedisCache es idempotente: si Redis no levanta, la app igual
 //    arranca y RedisCacheService degrada a "sin cache" (ver Infrastructure/Caching).
+//
+//    REDIS ES OPCIONAL A PROPOSITO. Sin "ConnectionStrings:Redis" se registra una cache
+//    EN MEMORIA en vez de dejar la que apunte a localhost:6379. Motivo: con la cadena
+//    apuntando a un Redis que no esta levantado, cada operacion de cache espera el
+//    ConnectTimeout, /health se vuelve Degraded y /readiness devolvia 503, de modo que un
+//    `dotnet run` recien bajado del repo se veia "roto" sin que hubiera un solo error. Con
+//    la cache en memoria el proyecto funciona de salida en una maquina limpia, y la
+//    ICacheService sigue siendo la misma: cambiar a Redis es definir la cadena, no tocar
+//    codigo.
 // -----------------------------------------------------------------------------
 var redisConnection = builder.Configuration.GetConnectionString("Redis");
 
 if (string.IsNullOrWhiteSpace(redisConnection))
 {
     Log.Warning(
-        "No se encontro ConnectionStrings:Redis. La API arranca SIN cache distribuida. " +
-        "Levantar Redis con 'docker compose up -d' o definir la cadena de conexion.");
+        "No se encontro ConnectionStrings:Redis. La API arranca con cache EN MEMORIA " +
+        "(reloj de proceso). Para usar Redis de verdad: " +
+        "dotnet user-secrets --project Rescauta.Api set \"ConnectionStrings:Redis\" \"localhost:6379,password=...\"");
 }
 else
 {
     redisConnection = NormalizeRedisConnectionString(redisConnection);
 }
 
-builder.Services.AddStackExchangeRedisCache(options =>
+if (string.IsNullOrWhiteSpace(redisConnection))
 {
-    var configuration = string.IsNullOrWhiteSpace(redisConnection) ? "localhost:6379" : redisConnection;
+    builder.Services.AddDistributedMemoryCache();
+}
+else
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        // Ajustes de fail-fast. Sin esto, cada operacion de cache bloquea 5 segundos cuando
+        // Redis no esta levantado, y /health y /readiness se vuelven inutilizables. Con
+        // AbortOnConnectFail en false la app arranca igual y RedisCacheService degrada a
+        // "sin cache", que es justo el comportamiento deseado en desarrollo.
+        var redisOptions = ConfigurationOptions.Parse(redisConnection);
+        redisOptions.AbortOnConnectFail = false;
+        redisOptions.ConnectTimeout = Math.Min(redisOptions.ConnectTimeout, 1000);
+        redisOptions.SyncTimeout = Math.Min(redisOptions.SyncTimeout, 1000);
+        redisOptions.AsyncTimeout = Math.Min(redisOptions.AsyncTimeout, 1000);
+        redisOptions.ConnectRetry = 0;
 
-    // Ajustes de fail-fast. Sin esto, cada operacion de cache bloquea 5 segundos cuando
-    // Redis no esta levantado, y /health y /readiness se vuelven inutilizables. Con
-    // AbortOnConnectFail en false la app arranca igual y RedisCacheService degrada a
-    // "sin cache", que es justo el comportamiento deseado en desarrollo.
-    var redisOptions = ConfigurationOptions.Parse(configuration);
-    redisOptions.AbortOnConnectFail = false;
-    redisOptions.ConnectTimeout = Math.Min(redisOptions.ConnectTimeout, 1000);
-    redisOptions.SyncTimeout = Math.Min(redisOptions.SyncTimeout, 1000);
-    redisOptions.AsyncTimeout = Math.Min(redisOptions.AsyncTimeout, 1000);
-    redisOptions.ConnectRetry = 0;
-
-    options.ConfigurationOptions = redisOptions;
-    options.InstanceName = builder.Configuration["Cache:InstanceName"] ?? "rescauta:";
-});
+        options.ConfigurationOptions = redisOptions;
+        options.InstanceName = builder.Configuration["Cache:InstanceName"] ?? "rescauta:";
+    });
+}
 
 // -----------------------------------------------------------------------------
 // 5. SignalR - tiempo real (WebSockets / Server-Sent Events / Long Polling).
@@ -160,7 +175,14 @@ var healthChecksBuilder = builder.Services.AddHealthChecks()
 // El check de AMQP se registra solo si la mensajeria esta habilitada: depende de
 // RabbitMqConnection, que AddInfrastructure no registra cuando "RabbitMq:Enabled" es false.
 // Registrarlo siempre haria fallar la resolucion de /health.
-if (builder.Configuration.GetValue("RabbitMq:Enabled", true))
+//
+// Y "habilitada" significa las dos cosas: Enabled en true Y una URI definida. Con Enabled
+// en true pero la cadena vacia no hay broker al que conectarse, asi que el check solo
+// produciria un "Degraded" permanente que hace creer que algo esta roto.
+var rabbitMqHabilitado = builder.Configuration.GetValue("RabbitMq:Enabled", true)
+                          && !string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("RabbitMq"));
+
+if (rabbitMqHabilitado)
 {
     builder.Services.AddScoped<RabbitMqHealthCheck>();
     healthChecksBuilder.AddCheck<RabbitMqHealthCheck>("messaging", HealthStatus.Degraded, tags: new[] { "messaging" });
@@ -203,7 +225,16 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(options => options.SwaggerEndpoint("/swagger/v1/swagger.json", "Rescauta API v1"));
+
+    // RoutePrefix vacio = la UI se sirve en "/" en vez de "/swagger". Sin esto, abrir la
+    // raiz de la API devuelve 404 y parece que la API esta caida, cuando lo unico que
+    // falta es llegar a /swagger. Los assets de la UI (swagger-ui.css, .js) siguen
+    // pidiéndose en su ruta habitual; RoutePrefix solo mueve la pagina.
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Rescauta API v1");
+        options.RoutePrefix = string.Empty;
+    });
 }
 
 app.UseCors(CorsPolicyName);
@@ -225,13 +256,25 @@ var hubRoute = builder.Configuration["SignalR:Route"] ?? RescautaHub.Route;
 app.MapHub<RescautaHub>(hubRoute);
 
 // -----------------------------------------------------------------------------
-// 11. Migraciones automaticas en desarrollo. En produccion se ejecutan como paso
-//     previo al despliegue, nunca al arrancar.
+// 11. Esquema y datos de arranque, SIEMPRE, y no solo en desarrollo.
+//
+// Antes iba dentro de un "if (IsDevelopment())" con la idea de que en produccion las
+// migraciones se ejecutan como paso previo al despliegue. Ese paso no existe: en el
+// repositorio no hay ni una migracion de EF Core, asi que EnsureCreated es el unico
+// camino que crea el esquema. Con el "if", la API de produccion arrancaba sin tablas
+// y cada consulta moria con "SQLite Error 1: 'no such table: comedores'", que el
+// middleware reportaba como un 500 generico sin pista de la causa.
+//
+// Ademas /health y /api/v1/system/readiness dan 200 igual (PingAsync ejecuta un
+// "SELECT 1" que no necesita ninguna tabla), de modo que Render daba el despliegue por
+// bueno y el fallo solo aparecia en la primera pagina abierta por un usuario.
+//
+// La decision ahora la toma Database:MigrateOnStartup, no el entorno: asi el mismo
+// codigo sirve para el SQLite recien bajado de desarrollo y para el despliegue, y basta
+// poner MigrateOnStartup en false para arrancar contra una base ya provisionada.
+// ApplyPendingMigrationsAsync no lanza: si la base no responde, avisa por log y sigue.
 // -----------------------------------------------------------------------------
-if (app.Environment.IsDevelopment())
-{
-    await app.Services.ApplyPendingMigrationsAsync();
-}
+await app.Services.ApplyPendingMigrationsAsync();
 
 Log.Information("Rescauta API iniciada. Entorno: {Environment} | Hub: {HubRoute}", app.Environment.EnvironmentName, hubRoute);
 

@@ -70,9 +70,23 @@ public class AppDbContext : DbContext, IAppDbContext
         ConfigureConventions(modelBuilder);
     }
 
-    private static void ConfigureConventions(ModelBuilder modelBuilder)
+    private void ConfigureConventions(ModelBuilder modelBuilder)
     {
-        modelBuilder.HasDefaultSchema("rescauta");
+        // Esquema por defecto SOLO en proveedores que lo soportan.
+        //
+        // "rescauta" es un namespace real en PostgreSQL y en SQL Server, asi que ahi aporta:
+        // aisla las tablas del proyecto de las de otras que compartan base. En SQLite NO
+        // existe el concepto: todo cuelga de "main". Declararlo ahi no hacia falta nada y
+        // EF Core lo descartaba avisando por cada entidad en cada arranque ("'Comedor' is
+        // configured to use schema 'rescauta', but SQLite does not support schemas"), con el
+        // ruido de cuatro warnings que hay que aprender a ignorar.
+        //
+        // El nombre del proveedor se lee de las opciones YA configuradas, no de IConfiguration,
+        // para que el modelo dependa solo de como se registro el DbContext.
+        if (!Database.IsSqlite())
+        {
+            modelBuilder.HasDefaultSchema("rescauta");
+        }
 
         // Filtro global de borrado logico. EF Core 8 no trae soft delete nativo
         // (llego recien en EF Core 10), asi que se aplica con SetQueryFilter sobre

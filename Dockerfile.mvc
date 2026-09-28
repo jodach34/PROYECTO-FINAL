@@ -1,0 +1,91 @@
+# =============================================================================
+# Rescauta MVC - Dockerfile multi-stage
+#
+# Que servicio de Render lo usa: "rescauta-mvc" (ver render.yaml, runtime: docker).
+# El otro servicio, "rescauta-api", usa el Dockerfile de la raiz.
+#
+# Contexto de build: la RAIZ del repositorio. En render.yaml eso es dockerContext: ..
+# (o ".", que es lo mismo: la raiz), y es OBLIGATORIO que sea la raiz y no esta
+# carpeta, porque el .csproj de la raiz tiene los globs de compilacion en **/*.cs.
+#
+# -----------------------------------------------------------------------------
+# POR QUE HACE FALTA UN SEGUNDO DOCKERFILE
+#
+# El repositorio tiene dos aplicaciones independientes: el MVC de la raiz
+# (PROYECTO-FINAL.csproj) y la API de Clean Architecture (Rescauta/Rescauta.sln). El
+# proyecto de la raiz NO forma parte de la solucion y NO referencia a la API: se
+# comunican por HTTP. Render ejecuta un proceso por servicio web, asi que cada
+# aplicacion necesita su propia imagen.
+#
+# Este Dockerfile no copia NADA de Rescauta/, y esa es la decision: el MVC no lo
+# necesita para compilar ni para arrancar. En produccion nunca lo levanta como proceso
+# hijo (ver Program.cs y Services/ApiLocal.cs), asi que no puede faltar.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: build
+# -----------------------------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Solo el .csproj primero, para que el restore se cachee mientras no cambie.
+# OJO: a diferencia de la API, este proyecto NO usa Directory.Packages.props, asi que
+# no hay nada mas que copiar para que el restore sea reproducible.
+COPY PROYECTO-FINAL.csproj ./
+
+RUN dotnet restore PROYECTO-FINAL.csproj
+
+# Ahora el codigo. El orden importa: PROYECTO-FINAL.csproj ya esta copiado, y COPY de
+# un directorio NO lo borra, asi que sigue ahi.
+COPY Program.cs ./
+COPY Properties/ Properties/
+COPY Controllers/ Controllers/
+COPY Models/ Models/
+COPY Services/ Services/
+COPY Views/ Views/
+COPY wwwroot/ wwwroot/
+COPY appsettings.json ./
+COPY appsettings.Development.json ./
+
+RUN dotnet publish PROYECTO-FINAL.csproj \
+        --configuration Release \
+        --no-restore \
+        --output /app/publish \
+        /p:UseAppHost=false
+
+# -----------------------------------------------------------------------------
+# Stage 2: runtime
+# -----------------------------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+
+COPY --from=build /app/publish ./
+
+# El MVC no escribe nada en disco: las cookies y la sesion del operador viven en
+# memoria (AddDistributedMemoryCache) y los datos estan en la API. Por eso, al
+# contrario que en la API, aqui no hace falta crear ni cambiar los permisos de
+# ninguna carpeta.
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV DOTNET_RUNNING_IN_CONTAINER=true
+
+# --- Puerto --------------------------------------------------------------------
+# Mismo criterio que en el Dockerfile de la API: Render asigna el puerto en PORT y
+# ASP.NET Core no lee esa variable. Se pasa por --urls, que es la fuente de mayor
+# prioridad, y ${PORT:-8080} lo expande el shell al arrancar y no Docker al construir.
+EXPOSE 8080
+
+# --- Donde esta la API ---------------------------------------------------------
+# Api__BaseUrl NO tiene un valor por defecto aqui a proposito. Su valor por defecto en
+# appsettings.json es http://localhost:5266/, que dentro del contenedor apunta al
+# propio contenedor: el sitio abriria y las tres pantallas dirian "No se pudo contactar
+# a la API" sin ninguna pista de por que. Ademas Program.cs refuses arrancar en
+# produccion si falta o si apunta a localhost, con lo que el fallo se ve en el log del
+# despliegue en vez de aparecer como un sitio medio roto.
+#
+# Render pide el valor al desplegar (esta en render.yaml como "sync: false"). Hay que
+# poner la URL publica de rescauta-api, CON https y CON la barra al final.
+# ENV Api__BaseUrl=https://rescauta-api.onrender.com/
+
+USER $APP_UID
+
+ENTRYPOINT ["sh", "-c", "exec dotnet PROYECTO-FINAL.dll --urls http://+:${PORT:-8080}"]

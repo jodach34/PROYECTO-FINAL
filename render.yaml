@@ -1,52 +1,117 @@
+# =============================================================================
 # Despliegue en Render.
 #
-# SON DOS SERVICIOS, y no es capricho: el proyecto quedo partido en una API (que habla con
-# SQLite) y un MVC (que la consume por HTTP). Render ejecuta UN proceso por servicio web,
-# asi que un solo servicio no alcanza: si solo se despliega el MVC, las tres pantallas abren
-# pero muestran el aviso "No se pudo contactar a la API".
+# -----------------------------------------------------------------------------
+# POR QUE SON DOS SERVICIOS
 #
-#   rescauta-api -> puerto que Render asigna, expone /api/v1/... y crea la base al arrancar
-#   rescauta-mvc  -> puerto 80 publico, es la pagina que se abre
+# El proyecto quedo partido en una API (que habla con SQLite) y un MVC (que la consume
+# por HTTP). Render ejecuta UN proceso por servicio web, asi que un solo servicio no
+# alcanza: si solo se despliega el MVC, las pantallas abren pero muestran el aviso "No se
+# pudo contactar a la API".
 #
-# LO UNICO QUE HAY QUE EDITAR A MANO en el panel de Render:
-#   En rescauta-mvc, la variable Api__BaseUrl debe apuntar a la URL publica de rescauta-api
-#   (algo como https://rescauta-api.onrender.com/ con la barra al final). Aqui se deja como
-#   "sync: false" justamente para que Render la pida y no la adivine.
+#   rescauta-api -> Dockerfile       -> expone /health y /api/v1/..., y crea la base al arrancar
+#   rescauta-mvc  -> Dockerfile.mvc   -> puerto publico, es la pagina que se abre
 #
-# SOBRE SQLITE: el plan gratis de Render NO tiene disco. El archivo .db vive en el sistema
-# de archivos del contenedor, que se borra en cada redespliegue. La semilla corre al
-# arrancar, asi que la app vuelve a levantar con los 5 comedores de ejemplo, pero las
-# donaciones registradas se pierden. Para que persistan hay que agregar un disco montado
-# en /var/data y poner Data Source=/var/data/rescauta.db (que es lo que ya hace este
-# archivo, para cuando el disco exista).
+# -----------------------------------------------------------------------------
+# POR QUE AMBOS USAN runtime: docker
+#
+# Antes los dos servicios usaban "runtime: dotnet" con buildCommand, mientras un
+# Dockerfile estaba en la raiz del repositorio. Eso es contradictorio: Render detecta
+# un Dockerfile y lo usa en vez del buildCommand, y ademas el unico Dockerfile
+# construia la API, de modo que el servicio "rescauta-mvc" terminaba ejecutando la API.
+# Con "runtime: docker" no hay ambiguedad posible: cada servicio dice que Dockerfile
+# construye, y punto.
+#
+# -----------------------------------------------------------------------------
+# LO UNICO QUE HAY QUE RELLENAR A MANO
+#
+# En rescauta-mvc, la variable Api__BaseUrl. Esta marcada "sync: false" para que Render
+# la pida en vez de adivinarla: hay que poner la URL publica de rescauta-api, con https
+# y con la barra al final, algo como  https://rescauta-api.onrender.com/
+# (El nombre del host lo decide Render en el primer despliegue. Se puede copiar desde
+# la pagina del servicio rescauta-api.)
+#
+# -----------------------------------------------------------------------------
+# SOBRE SQLITE Y LA PERSISTENCIA - LEER ANTES DE QUEJARSE
+#
+# Los dos servicios estan en plan: free, y el plan gratis NO tiene disco: su sistema
+# de archivos es efimero. La semilla corre al arrancar, asi que la aplicacion levanta y
+# muestra los 5 comedores de ejemplo, pero TODO lo que se registre (donaciones, kardex)
+# se pierde en cada redespliegue, reinicio o suspension.
+#
+# Eso es una limitacion del plan, no un error de configuracion. Para que los datos
+# sobrevivan:
+#   1) Pon el plan del servicio rescauta-api en "starter" (de pago) y descomenta el
+#      bloque "disk:" de abajo, que monta un volumen persistente en /var/data.
+#   2) Cambia la variable Database__ConnectionString de rescauta-api a
+#      Data Source=/var/data/rescauta.db
+# Con los dos pasos hechos, el bloque disk de este archivo y la ruta /var/data del
+# contenedor quedan consistentes. Con uno solo de los dos, el servicio no arranca.
+#
+# Aviso adicional del plan gratis: tras 15 minutos sin trafico el servicio se suspende
+# y la primera peticion posterior tarda (arranque en frio). Ademas, la sesion del MVC
+# esta en memoria, asi que al suspender y despertar se pierde el comedor que estaba
+# seleccionado: es el comportamiento esperado, no un fallo.
+# =============================================================================
 
 services:
+  # ---------------------------------------------------------------------------
+  # Servicio 1: la API. Es la unica que habla con la base de datos.
+  # ---------------------------------------------------------------------------
   - type: web
     name: rescauta-api
-    runtime: dotnet
-    rootDir: Rescauta
-    buildCommand: dotnet publish Rescauta.Api/Rescauta.Api.csproj -c Release -o out
-    startCommand: ./out/Rescauta.Api
-    healthCheckPath: /api/v1/system/readiness
+    runtime: docker
+    # dockerfilePath: el Dockerfile de la raiz, el que construye Rescauta.Api.
+    dockerfilePath: ./Dockerfile
+    # dockerContext: la raiz del repositorio, porque el Dockerfile hace
+    # "COPY Rescauta/ ./". Si se dejara el valor por defecto, el contexto seria el
+    # directorio del Dockerfile (la raiz, aqui) y darian igual, pero dejarlo explicito
+    # evita que alguien lo mueva y rompa el COPY sin avisar.
+    dockerContext: .
+    plan: free
+    # /health, no /api/v1/system/readiness: ambos devuelven 200/503, pero /health es el
+    # que no depende de la cache. La API crea el esquema ANTES de abrir el puerto, asi
+    # que cuando Render empieza a preguntar el esquema ya esta.
+    healthCheckPath: /health
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
       - key: Database__Provider
         value: Sqlite
+      # Sin disco: el archivo va en el sistema de archivos efimero del contenedor, en
+      # la carpeta /app/data que crea el Dockerfile. Con disco montado, cambiar a
+      # Data Source=/var/data/rescauta.db (ver cabecera).
       - key: Database__ConnectionString
-        value: Data Source=/var/data/rescauta.db
+        value: Data Source=/app/data/rescauta.db
       - key: Database__MigrateOnStartup
         value: "true"
 
+    # disk:
+    #   name: rescauta-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
+
+  # ---------------------------------------------------------------------------
+  # Servicio 2: el MVC. Es la pagina que se abre. No tiene base de datos propia.
+  # ---------------------------------------------------------------------------
   - type: web
     name: rescauta-mvc
-    runtime: dotnet
-    buildCommand: dotnet publish PROYECTO-FINAL.csproj -c Release -o out
-    startCommand: ./out/PROYECTO-FINAL
+    runtime: docker
+    dockerfilePath: ./Dockerfile.mvc
+    dockerContext: .
+    plan: free
+    # Health check propio, /healthz, que NO llama a la API a proposito. Si el check
+    # fuera "/" o cualquier pagina, dependeria de que la API este despierta: en el plan
+    # gratis esta se suspende a los 15 minutos, la primera carga de la pagina haria
+    # Cold Start de la API, y si eso tarda mas que el timeout del check, Render daria
+    # el servicio por caido y lo reiniciaria en bucle. Un endpoint que no depende de
+    # nada externo no puede entrar en ese ciclo.
+    healthCheckPath: /healthz
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
-      # La API tiene que existir ANTES que este servicio, porque el MVC la llama en cada
-      # carga de pagina para pintar el mapa.
+      # La URL publica de rescauta-api, con https y con la barra al final. Render la
+      # pide al desplegar. Si se deja mal, el MVC NO arranca y el motivo aparece en el
+      # log de este servicio (ver Program.cs).
       - key: Api__BaseUrl
         sync: false
