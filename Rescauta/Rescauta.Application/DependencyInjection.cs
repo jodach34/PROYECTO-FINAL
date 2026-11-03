@@ -5,9 +5,11 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Rescauta.Application.Common;
+using Rescauta.Application.Features.Autenticacion;
 using Rescauta.Application.Features.Comedores;
 using Rescauta.Application.Features.Donaciones;
 using Rescauta.Application.Features.Kardex;
+using Rescauta.Application.Features.Usuarios;
 using Rescauta.Application.Interfaces;
 using Rescauta.Application.Services;
 
@@ -44,6 +46,8 @@ public static class DependencyInjection
         services.TryAddScoped<IComedorService, ComedorService>();
         services.TryAddScoped<IDonacionService, DonacionService>();
         services.TryAddScoped<IKardexService, KardexService>();
+        services.TryAddScoped<IAutenticacionService, AutenticacionService>();
+        services.TryAddScoped<IUsuarioAdminService, UsuarioAdminService>();
 
         // IKardexService se registro junto a los otros dos. Antes no estaba en ninguna parte
         // y el endpoint POST /api/v1/kardex/movimiento devolvia 500 con "Unable to resolve

@@ -1,6 +1,8 @@
 using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rescauta.Api.Controllers;
+using Rescauta.Api.Security;
 using Rescauta.Application.Features.Comedores;
 using Rescauta.Application.Features.Comedores.Dto;
 
@@ -56,6 +58,7 @@ public sealed class ComedoresController(IComedorService comedorService) : ApiCon
     /// Control.
     /// </summary>
     [HttpGet("{comedorId:guid}/kardex")]
+    [Authorize(Policy = AuthPolicies.Operacion)]
     [ProducesResponseType<IReadOnlyList<KardexFilaDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<IReadOnlyList<KardexFilaDto>>> ObtenerKardex(

@@ -6,17 +6,17 @@ using PROYECTO_FINAL.Services;
 namespace PROYECTO_FINAL.Controllers;
 
 /// <summary>
-/// Mapa Interactivo. Lee los comedores y su estado de abastecimiento de la API.
-///
-/// El controller no decide que hacer si la API falla: se lo pasa al ViewModel y la vista
-/// avisa. Un mapa en blanco sin explicacion hace pensar que no hay comedores registrados,
-/// que es distinto de "no pude preguntar".
+/// Punto de entrada publico de Rescauta. La portada resumen la red y muestra el mapa;
+/// las paginas institucionales comparten el mismo layout y el mismo lenguaje visual.
 /// </summary>
 public class HomeController(RescautaApiClient api) : Controller
 {
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
         var resultado = await api.ObtenerComedoresAsync(cancellationToken);
+
+        ViewData["Title"] = "Comida que vuelve a servir";
+        ViewData["MetaDescription"] = "Rescauta conecta alimentos disponibles con comedores comunitarios para reducir el desperdicio y responder a tiempo.";
 
         return View(new MapaViewModel
         {
@@ -25,8 +25,43 @@ public class HomeController(RescautaApiClient api) : Controller
         });
     }
 
-    public IActionResult Privacy()
+    [Route("Nosotros")]
+    public IActionResult Nosotros()
     {
+        ViewData["Title"] = "Nosotros";
+        ViewData["MetaDescription"] = "Conoce el propósito, los principios y el equipo detrás de Rescauta.";
+        return View();
+    }
+
+    [Route("ComoFunciona")]
+    public IActionResult ComoFunciona()
+    {
+        ViewData["Title"] = "Cómo funciona";
+        ViewData["MetaDescription"] = "Del alimento disponible al plato servido: así funciona la red Rescauta.";
+        return View();
+    }
+
+    [Route("Donaciones")]
+    public IActionResult Donaciones()
+    {
+        ViewData["Title"] = "Donaciones";
+        ViewData["MetaDescription"] = "Dona alimentos, tiempo o recursos y ayuda a sostener los comedores comunitarios.";
+        return View();
+    }
+
+    [Route("Contacto")]
+    public IActionResult Contacto()
+    {
+        ViewData["Title"] = "Contacto";
+        ViewData["MetaDescription"] = "Escríbenos si representas un comedor, quieres donar o deseas sumarte como voluntario.";
+        return View();
+    }
+
+    [Route("Privacidad")]
+    public IActionResult Privacidad()
+    {
+        ViewData["Title"] = "Privacidad";
+        ViewData["MetaDescription"] = "Cómo trata Rescauta los datos de comedores, donantes y visitantes.";
         return View();
     }
 

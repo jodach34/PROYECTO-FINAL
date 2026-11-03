@@ -46,7 +46,8 @@ public sealed class Donacion : BaseEntity, IAggregateRoot
         int cantidad,
         string donante,
         string codigoSeguimiento,
-        DateTimeOffset? fechaDonacion = null)
+        DateTimeOffset? fechaDonacion = null,
+        Guid? usuarioId = null)
     {
         if (insumoId == Guid.Empty)
         {
@@ -91,7 +92,8 @@ public sealed class Donacion : BaseEntity, IAggregateRoot
             Donante = donante.Trim(),
             CodigoSeguimiento = codigoSeguimiento.Trim(),
             FechaDonacion = fechaDonacion ?? DateTimeOffset.UtcNow,
-            Estado = EstadoDonacion.Pendiente
+            Estado = EstadoDonacion.Pendiente,
+            UsuarioId = usuarioId
         };
     }
 
@@ -112,6 +114,8 @@ public sealed class Donacion : BaseEntity, IAggregateRoot
 
     /// <summary>Codigo de seguimiento unico que ve el donante.</summary>
     public string CodigoSeguimiento { get; private set; }
+
+    public Guid? UsuarioId { get; private set; }
 
     /// <summary>True si el estado ya no admite transiciones.</summary>
     public bool EsTerminal =>

@@ -1,0 +1,131 @@
+@{
+    Layout = "_PublicLayout";
+}
+<section class="border-b border-[#dce7df] bg-[#fbfdf9]">
+    <div class="rs-container py-12 sm:py-16">
+        <p class="rs-eyebrow">Cómo funciona</p>
+        <h1 class="rs-title max-w-4xl">Un circuito corto entre quien tiene y quien necesita.</h1>
+        <p class="rs-lead">
+            Rescauta ordena la información y reduce la fricción para que una donación llegue a un comedor concreto, con la cantidad correcta y un seguimiento claro.
+        </p>
+        <div class="mt-7 flex flex-wrap gap-2">
+            <a class="rs-btn rs-btn--primary" asp-controller="Comedores" asp-action="Index">Explorar comedores</a>
+            <a class="rs-btn rs-btn--secondary" asp-controller="Seguimiento" asp-action="Index">Seguir una donación</a>
+        </div>
+    </div>
+</section>
+
+<section class="rs-section">
+    <div class="rs-container grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+        <div>
+            <p class="rs-eyebrow">El recorrido</p>
+            <h2 class="rs-title rs-title--sm">Cuatro pasos, una cadena más visible.</h2>
+            <p class="rs-lead">Cada paso deja información útil para el siguiente. Así la ayuda deja de ser un gesto aislado y se convierte en parte de un sistema.</p>
+        </div>
+        <ol class="rs-timeline">
+            <li class="rs-timeline__item is-done">
+                <span class="rs-timeline__marker">01</span>
+                <div>
+                    <h3 class="rs-timeline__title">El comedor se presenta</h3>
+                    <p class="rs-timeline__detail">Comparte su ubicación de referencia, cuántas raciones prepara y qué insumos necesita. En esta versión, el alta de comedores todavía requiere acompañamiento del equipo.</p>
+                </div>
+            </li>
+            <li class="rs-timeline__item is-done">
+                <span class="rs-timeline__marker">02</span>
+                <div>
+                    <h3 class="rs-timeline__title">La red conoce la necesidad</h3>
+                    <p class="rs-timeline__detail">El directorio muestra el estado de abastecimiento de cada comedor. Los colores y porcentajes ayudan a priorizar dónde hace más falta el apoyo.</p>
+                </div>
+            </li>
+            <li class="rs-timeline__item is-current">
+                <span class="rs-timeline__marker">03</span>
+                <div>
+                    <h3 class="rs-timeline__title">Una persona decide donar</h3>
+                    <p class="rs-timeline__detail">Elige un comedor, un insumo y una cantidad. El formulario registra la donación en la API y genera un código único de seguimiento.</p>
+                </div>
+            </li>
+            <li class="rs-timeline__item">
+                <span class="rs-timeline__marker">04</span>
+                <div>
+                    <h3 class="rs-timeline__title">La entrega se puede consultar</h3>
+                    <p class="rs-timeline__detail">Con el código, el donante consulta el estado de su aporte. La información visible es solo la de esa donación, no la de toda la base.</p>
+                </div>
+            </li>
+        </ol>
+    </div>
+</section>
+
+<section class="rs-section rs-section--cream">
+    <div class="rs-container">
+        <div class="max-w-2xl">
+            <p class="rs-eyebrow">Cada rol importa</p>
+            <h2 class="rs-title rs-title--sm">La plataforma se entiende mejor desde quien la usa.</h2>
+        </div>
+        <div class="mt-8 grid gap-4 md:grid-cols-3">
+            <article class="rs-card p-6">
+                <span class="rs-badge rs-badge--brand">Comedores</span>
+                <h3 class="mt-4 text-base font-extrabold">Mantienen la información viva</h3>
+                <p class="mt-2 text-sm leading-7 text-[#5f6f66]">Actualizan inventario, revisan necesidades y confirman que una donación llegó. Su información es la base del directorio.</p>
+            </article>
+            <article class="rs-card p-6">
+                <span class="rs-badge rs-badge--brand">Donantes</span>
+                <h3 class="mt-4 text-base font-extrabold">Eligen dónde aportar</h3>
+                <p class="mt-2 text-sm leading-7 text-[#5f6f66]">Ven el estado de la red, seleccionan un insumo concreto y reciben un código para conocer el avance de su donación.</p>
+            </article>
+            <article class="rs-card p-6">
+                <span class="rs-badge rs-badge--brand">Voluntarios</span>
+                <h3 class="mt-4 text-base font-extrabold">Sostienen la operación</h3>
+                <p class="mt-2 text-sm leading-7 text-[#5f6f66]">Apoyan en cocina, clasificación, traslado o difusión. Su tiempo también es una forma de abastecer la red.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="rs-section">
+    <div class="rs-container grid gap-6 lg:grid-cols-[1fr_0.8fr]">
+        <div class="rs-panel">
+            <div class="rs-panel__head">
+                <h2 class="rs-panel__title">Preguntas frecuentes</h2>
+            </div>
+            <div class="rs-panel__body divide-y divide-[#eef2ee]">
+                <details class="group py-3 first:pt-0">
+                    <summary class="cursor-pointer list-none text-sm font-bold text-[#263a2f] marker:hidden">
+                        ¿Necesito una cuenta para ver los comedores?
+                        <span class="float-right text-[#1b6b4a] transition group-open:rotate-45">+</span>
+                    </summary>
+                    <p class="mt-2 text-sm leading-7 text-[#5f6f66]">No. El directorio y las fichas de comedores son públicos. La cuenta será necesaria para gestionar inventario o registrar donaciones como organización.</p>
+                </details>
+                <details class="group py-3">
+                    <summary class="cursor-pointer list-none text-sm font-bold text-[#263a2f] marker:hidden">
+                        ¿Cómo sigo mi donación?
+                        <span class="float-right text-[#1b6b4a] transition group-open:rotate-45">+</span>
+                    </summary>
+                    <p class="mt-2 text-sm leading-7 text-[#5f6f66]">Al registrar una donación recibes un código como <span class="rs-mono text-xs">DON-2026-00042</span>. Ingrésalo en la página de seguimiento para consultar su estado.</p>
+                </details>
+                <details class="group py-3">
+                    <summary class="cursor-pointer list-none text-sm font-bold text-[#263a2f] marker:hidden">
+                        ¿Qué significa el estado de abastecimiento?
+                        <span class="float-right text-[#1b6b4a] transition group-open:rotate-45">+</span>
+                    </summary>
+                    <p class="mt-2 text-sm leading-7 text-[#5f6f66]">Se calcula con el inventario disponible frente a la capacidad de cada comedor: abastecido desde 60%, alerta desde 30% y emergencia por debajo de 30%. Sin insumos registrados se muestra “sin datos”.</p>
+                </details>
+                <details class="group py-3">
+                    <summary class="cursor-pointer list-none text-sm font-bold text-[#263a2f] marker:hidden">
+                        ¿Puedo registrarme como administrador?
+                        <span class="float-right text-[#1b6b4a] transition group-open:rotate-45">+</span>
+                    </summary>
+                    <p class="mt-2 text-sm leading-7 text-[#5f6f66]">No. Los permisos administrativos no se asignan desde el formulario público. La autenticación y la gestión de roles todavía no están implementadas en esta versión.</p>
+                </details>
+            </div>
+        </div>
+
+        <aside class="rs-alert rs-alert--warn h-fit">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+                <path d="M12 9v4" />
+                <path d="M12 17h.01" />
+                <path d="M10.3 4.7 2.9 18a1.7 1.7 0 0 0 1.5 2.5h15.2a1.7 1.7 0 0 0 1.5-2.5L13.7 4.7a1.9 1.9 0 0 0-3.4 0Z" />
+            </svg>
+            <span><strong>Estado actual del proyecto.</strong> El registro de donaciones y el seguimiento están conectados a la API. Las cuentas, los roles y la recuperación de acceso son pantallas preparadas que todavía no procesan datos.</span>
+        </aside>
+    </div>
+</section>

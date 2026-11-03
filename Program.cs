@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
 using PROYECTO_FINAL.Services;
 
@@ -5,6 +7,64 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddAuthorization();
+
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = ".Rescauta.Auth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.LoginPath = "/Cuenta/Login";
+        options.LogoutPath = "/Cuenta/Logout";
+        options.AccessDeniedPath = "/Cuenta/AccesoDenegado";
+        options.ReturnUrlParameter = "returnUrl";
+        options.ExpireTimeSpan = TimeSpan.FromHours(12);
+        options.SlidingExpiration = true;
+
+        options.Events = new CookieAuthenticationEvents
+        {
+            OnValidatePrincipal = async context =>
+            {
+                var token = context.HttpContext.Session.GetString(AuthSessionKeys.Token);
+
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    context.RejectPrincipal();
+                    await context.HttpContext.SignOutAsync(
+                        CookieAuthenticationDefaults.AuthenticationScheme);
+                    return;
+                }
+
+                var api = context.HttpContext.RequestServices
+                    .GetRequiredService<RescautaApiClient>();
+
+                var sesion = await api.ObtenerSesionAsync(
+                    token,
+                    context.HttpContext.RequestAborted);
+
+                if (sesion.Exito)
+                {
+                    context.ReplacePrincipal(
+                        MvcAuthClaims.Actualizar(context.Principal!, sesion.Valor!));
+
+                    context.ShouldRenew = true;
+                    return;
+                }
+
+                if (sesion.Codigo is "api_no_autorizado" or "auth.no_autorizado")
+                {
+                    context.HttpContext.Session.Remove(AuthSessionKeys.Token);
+                    context.RejectPrincipal();
+                    await context.HttpContext.SignOutAsync(
+                        CookieAuthenticationDefaults.AuthenticationScheme);
+                }
+            }
+        };
+    });
 
 // -----------------------------------------------------------------------------
 // Estado entre peticiones: los tres mecanismos que pide el temario y que NO son lo mismo.
@@ -34,7 +94,7 @@ builder.Services.AddSession(options =>
     // un contenedor detras del proxy de Render, que termina el TLS y reenvia por http. Con
     // Always, ASP.NET lanza excepcion (CheckSSLConfig) al pintar cualquier formulario si la
     // peticion que ve el contenedor no es https, y el navegador del profesor se lleva una
-    // pagina 500 en /StateDemo y en el banco. El atributo Secure de la cookie lo decide en
+    // pagina 500 en el banco de alimentos. El atributo Secure de la cookie lo decide en
     // el fondo la conexion del navegador (https), no la vision del contenedor.
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 
@@ -198,6 +258,7 @@ app.UseRouting();
 // ya se ejecutaron.
 app.UseSession();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapStaticAssets();

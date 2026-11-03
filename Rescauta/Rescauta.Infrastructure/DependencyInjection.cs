@@ -2,16 +2,19 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Rescauta.Application.Features.Autenticacion;
 using Rescauta.Application.Interfaces;
 using Rescauta.Application.Interfaces.Caching;
 using Rescauta.Application.Interfaces.Messaging;
 using Rescauta.Application.Interfaces.RealTime;
 using Rescauta.Infrastructure.Caching;
+using Rescauta.Infrastructure.Email;
 using Rescauta.Infrastructure.Messaging;
 using Rescauta.Infrastructure.Options;
 using Rescauta.Infrastructure.Persistence;
 using Rescauta.Infrastructure.Persistence.Interceptors;
 using Rescauta.Infrastructure.RealTime;
+using Rescauta.Infrastructure.Security;
 
 namespace Rescauta.Infrastructure;
 
@@ -37,11 +40,19 @@ public static class DependencyInjection
                 $"Falta configurar '{DatabaseOptions.SectionName}:ConnectionString'.")
             .ValidateOnStart();
 
+        services.AddOptions<AuthOptions>()
+            .Bind(configuration.GetSection(AuthOptions.SectionName));
+
+        services.AddOptions<EmailOptions>()
+            .Bind(configuration.GetSection(EmailOptions.SectionName));
+
         services.AddHttpContextAccessor();
         services.AddScoped<AuditableEntityInterceptor>();
         services.AddSingleton<CacheKeyRegistry>();
         services.AddScoped<ICacheService, RedisCacheService>();
         services.AddScoped<IRescautaNotifier, RescautaRealtimeNotifier>();
+        services.TryAddSingleton<IPasswordHashService, PasswordHashService>();
+        services.TryAddScoped<IEmailSender, SmtpEmailSender>();
 
         // Modulo Kardex: notificador tipado de inventario sobre el hub compartido.
         // Singleton, no Scoped ni Transient: IHubContext<RescautaHub> es singleton con

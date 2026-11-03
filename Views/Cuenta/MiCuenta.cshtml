@@ -1,0 +1,82 @@
+@model MiCuentaViewModel
+@{
+    Layout = "_AppLayout";
+    ViewData["Title"] = "Mi cuenta";
+    ViewData["AppSection"] = "Cuenta";
+    ViewData["AppTitle"] = "Mi cuenta";
+}
+
+<div class="rs-page-head">
+    <div>
+        <p class="rs-eyebrow">Perfil</p>
+        <h1 class="rs-page-title">Tu cuenta en Rescauta</h1>
+        <p class="rs-page-subtitle">Revisa tus datos de acceso y actualiza la contraseña cuando lo necesites.</p>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.Exito))
+{
+    <div class="rs-alert rs-alert--ok mb-4" role="status"><span>@Model.Exito</span></div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.Error))
+{
+    <div class="rs-alert rs-alert--error mb-4" role="alert"><span>@Model.Error</span></div>
+}
+
+<div class="grid gap-4 lg:grid-cols-2">
+    <section class="rs-panel">
+        <div class="rs-panel__head">
+            <h2 class="rs-panel__title">Datos de la cuenta</h2>
+        </div>
+        <div class="rs-panel__body">
+            @if (Model.Usuario is null)
+            {
+                <p class="text-[0.8rem] text-[#5f6f66]">No se pudieron cargar tus datos.</p>
+            }
+            else
+            {
+                <dl class="grid gap-3 text-[0.8rem]">
+                    <div><dt class="font-bold text-[#5f6f66]">Nombre</dt><dd class="mt-0.5 font-extrabold">@Model.Usuario.Nombre</dd></div>
+                    <div><dt class="font-bold text-[#5f6f66]">Correo</dt><dd class="mt-0.5 font-extrabold">@Model.Usuario.Correo</dd></div>
+                    <div><dt class="font-bold text-[#5f6f66]">Rol</dt><dd class="mt-0.5 font-extrabold">@Model.Usuario.Rol</dd></div>
+                    @if (!string.IsNullOrWhiteSpace(Model.Usuario.Organizacion))
+                    {
+                        <div><dt class="font-bold text-[#5f6f66]">Organización</dt><dd class="mt-0.5 font-extrabold">@Model.Usuario.Organizacion</dd></div>
+                    }
+                    <div>
+                        <dt class="font-bold text-[#5f6f66]">Comedores asignados</dt>
+                        <dd class="mt-0.5 font-extrabold">
+                            @(Model.Usuario.Comedores.Count == 0
+                                ? "Sin asignaciones"
+                                : string.Join(", ", Model.Usuario.Comedores.Select(c => c.Nombre)))
+                        </dd>
+                    </div>
+                </dl>
+            }
+        </div>
+    </section>
+
+    <section class="rs-panel">
+        <div class="rs-panel__head">
+            <h2 class="rs-panel__title">Cambiar contraseña</h2>
+        </div>
+        <div class="rs-panel__body">
+            <form method="post" asp-controller="Cuenta" asp-action="CambiarPassword" class="grid gap-4">
+                <div>
+                    <label class="rs-label" for="PasswordActual">Contraseña actual</label>
+                    <input class="rs-input" id="PasswordActual" name="PasswordActual" type="password" autocomplete="current-password" required />
+                </div>
+                <div>
+                    <label class="rs-label" for="PasswordNueva">Contraseña nueva</label>
+                    <input class="rs-input" id="PasswordNueva" name="PasswordNueva" type="password" autocomplete="new-password" required />
+                </div>
+                <div>
+                    <label class="rs-label" for="PasswordConfirmar">Repetir contraseña nueva</label>
+                    <input class="rs-input" id="PasswordConfirmar" name="PasswordConfirmar" type="password" autocomplete="new-password" required />
+                </div>
+                <button class="rs-btn rs-btn--primary" type="submit">Actualizar contraseña</button>
+            </form>
+        </div>
+    </section>
+</div>

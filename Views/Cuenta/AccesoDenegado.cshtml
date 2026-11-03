@@ -1,0 +1,14 @@
+@{
+    Layout = "_AuthLayout";
+}
+<div class="rs-auth__card">
+    <p class="rs-eyebrow">Permisos</p>
+    <h1 class="mt-3 font-display text-2xl font-extrabold tracking-[-0.045em]">No tienes acceso a esta sección</h1>
+    <p class="mt-3 text-[0.8rem] leading-6 text-[#5f6f66]">
+        Tu cuenta no tiene el rol necesario para entrar aquí. Si crees que es un error, contacta a la coordinación de Rescauta.
+    </p>
+    <div class="mt-6 flex flex-wrap gap-2">
+        <a class="rs-btn rs-btn--primary" asp-controller="Home" asp-action="Index">Volver al inicio</a>
+        <a class="rs-btn rs-btn--secondary" asp-controller="Cuenta" asp-action="MiCuenta">Mi cuenta</a>
+    </div>
+</div>

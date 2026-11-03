@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Rescauta.Application.Features.Autenticacion;
 using Rescauta.Infrastructure.Options;
 using Rescauta.Infrastructure.Persistence;
 using Rescauta.Infrastructure.Persistence.Seed;
@@ -85,6 +86,8 @@ public static class PersistenceExtensions
                 }
             }
 
+            await AuthSchemaInitializer.AsegurarAsync(context, logger, cancellationToken);
+
             // La semilla va DESPUES de crear o migrar el esquema, nunca antes: si se intentara
             // antes, el INSERT fallaria por tabla inexistente en una base recien bajada.
             //
@@ -93,6 +96,20 @@ public static class PersistenceExtensions
             // migracion aplicada se quedaria sin datos para siempre, porque en el segundo
             // arranque no volveria a pasar por aqui.
             await DatosSemilla.SembrarAsync(context, logger, cancellationToken);
+
+            var authOptions = scope.ServiceProvider
+                .GetRequiredService<IOptions<AuthOptions>>()
+                .Value;
+
+            var passwordHashService = scope.ServiceProvider
+                .GetRequiredService<IPasswordHashService>();
+
+            await UsuarioSemilla.SembrarAsync(
+                context,
+                passwordHashService,
+                authOptions,
+                logger,
+                cancellationToken);
         }
         catch (Exception ex)
         {

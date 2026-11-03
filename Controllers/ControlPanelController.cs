@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PROYECTO_FINAL.Models;
 using PROYECTO_FINAL.Services;
@@ -11,6 +12,7 @@ namespace PROYECTO_FINAL.Controllers;
 /// JavaScript, para que la pantalla tenga una URL compartible y funcione con el boton de
 /// atras del navegador.
 /// </summary>
+[Authorize(Roles = "Operador,Coordinador,Administrador")]
 public class ControlPanelController(RescautaApiClient api) : Controller
 {
     /// <summary>

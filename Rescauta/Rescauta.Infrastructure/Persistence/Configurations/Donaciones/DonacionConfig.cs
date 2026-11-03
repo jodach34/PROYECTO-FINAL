@@ -69,5 +69,8 @@ public sealed class DonacionConfig : IEntityTypeConfiguration<Donacion>
 
         builder.HasIndex(d => d.Estado)
             .HasDatabaseName("ix_donaciones_estado");
+
+        builder.HasIndex(d => d.UsuarioId)
+            .HasDatabaseName("ix_donaciones_usuario");
     }
 }

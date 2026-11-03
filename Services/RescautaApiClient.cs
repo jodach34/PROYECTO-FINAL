@@ -1,32 +1,27 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using PROYECTO_FINAL.Models.Api;
 
 namespace PROYECTO_FINAL.Services;
 
-/// <summary>
-/// Cliente de la API de Rescauta.
-///
-/// Es un HttpClient con nombre (AddHttpClient), no un new HttpClient() suelto: asi el
-/// tiempo de vida y el socket los administra el contenedor y no hay fugas al cambiar de
-/// instancia.
-///
-/// Todas las llamadas devuelven un Result con el motivo del fallo ya en texto. Ningun
-/// controller tiene que capturar excepciones de red ni adivinar que hacer cuando la API no
-/// arranca: eso lo decide <see cref="ApiNoDisponible"/>.
-/// </summary>
-public sealed class RescautaApiClient(HttpClient httpClient, ILogger<RescautaApiClient> logger)
+public sealed class RescautaApiClient(
+    HttpClient httpClient,
+    IHttpContextAccessor httpContextAccessor,
+    ILogger<RescautaApiClient> logger)
 {
-    /// <summary>
-    /// Texto unico para "la API no respondio". Es el caso mas comun durante el desarrollo:
-    /// el MVC arranca y la API todavia no, y sin esto la pantalla sale en blanco con un 500
-    /// sin ninguna pista.
-    /// </summary>
     public const string ApiNoDisponible =
         "No se pudo contactar a la API de Rescauta. Ensure que este corriendo en otra terminal.";
 
+    public const string ApiSesionExpirada =
+        "Tu sesión expiró. Vuelve a iniciar sesión para continuar.";
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    private string? TokenActual =>
+        httpContextAccessor.HttpContext?.Session.GetString(AuthSessionKeys.Token);
 
     public async Task<Result<IReadOnlyList<ComedorResumen>>> ObtenerComedoresAsync(
         CancellationToken cancellationToken = default)
@@ -60,47 +55,227 @@ public sealed class RescautaApiClient(HttpClient httpClient, ILogger<RescautaApi
             cancellationToken);
     }
 
+    public async Task<Result<IReadOnlyList<DonacionRegistrada>>> ObtenerMisDonacionesAsync(
+        int limite = 50,
+        CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<IReadOnlyList<DonacionRegistrada>>(
+            $"/api/v1/donaciones/mias?limite={limite}",
+            cancellationToken);
+    }
+
     public async Task<Result<DonacionRegistrada>> RegistrarDonacionAsync(
         DonacionRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        try
-        {
-            using var respuesta = await httpClient.PostAsJsonAsync(
-                "/api/v1/donaciones",
-                request,
-                Json,
-                cancellationToken);
+        return await SendAsync<DonacionRegistrada>(
+            HttpMethod.Post,
+            "/api/v1/donaciones",
+            request,
+            cancellationToken);
+    }
 
-            if (respuesta.IsSuccessStatusCode)
-            {
-                var donacion = await respuesta.Content
-                    .ReadFromJsonAsync<DonacionRegistrada>(Json, cancellationToken);
+    public async Task<Result<DonacionRegistrada>> ObtenerDonacionPorCodigoAsync(
+        string codigo,
+        CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<DonacionRegistrada>(
+            $"/api/v1/donaciones/seguimiento/{Uri.EscapeDataString(codigo)}",
+            cancellationToken);
+    }
 
-                return donacion is null
-                    ? Result<DonacionRegistrada>.Failure(
-                        "respuesta_vacia",
-                        "La API devolvio una respuesta vacia al registrar la donacion.")
-                    : Result<DonacionRegistrada>.Success(donacion);
-            }
+    public async Task<Result<LoginResponse>> LoginAsync(
+        LoginRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendAsync<LoginResponse>(
+            HttpMethod.Post,
+            "/api/v1/auth/login",
+            request,
+            cancellationToken);
+    }
 
-            return await TraducirErrorAsync<DonacionRegistrada>(respuesta, cancellationToken);
-        }
-        catch (Exception ex) when (EsFalloDeConexion(ex))
-        {
-            logger.LogWarning(ex, "Fallo de red al registrar la donacion.");
+    public async Task<Result<UsuarioSesion>> RegistrarDonanteAsync(
+        RegistroDonanteRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendAsync<UsuarioSesion>(
+            HttpMethod.Post,
+            "/api/v1/auth/registro/donante",
+            request,
+            cancellationToken);
+    }
 
-            return Result<DonacionRegistrada>.Failure("api_no_disponible", ApiNoDisponible);
-        }
+    public async Task<Result<UsuarioSesion>> SolicitarOperadorAsync(
+        SolicitudOperadorRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendAsync<UsuarioSesion>(
+            HttpMethod.Post,
+            "/api/v1/auth/registro/operador",
+            request,
+            cancellationToken);
+    }
+
+    public async Task<Result<RecuperacionResponse>> RecuperarPasswordAsync(
+        RecuperarPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendAsync<RecuperacionResponse>(
+            HttpMethod.Post,
+            "/api/v1/auth/recuperar",
+            request,
+            cancellationToken);
+    }
+
+    public async Task<Result> RestablecerPasswordAsync(
+        RestablecerPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendWithoutResponseAsync(
+            HttpMethod.Post,
+            "/api/v1/auth/restablecer",
+            request,
+            cancellationToken);
+    }
+
+    public async Task<Result> CambiarPasswordAsync(
+        CambiarPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendWithoutResponseAsync(
+            HttpMethod.Post,
+            "/api/v1/auth/cambiar-password",
+            request,
+            cancellationToken);
+    }
+
+    public async Task<Result> LogoutAsync(CancellationToken cancellationToken = default)
+    {
+        return await SendWithoutResponseAsync(
+            HttpMethod.Post,
+            "/api/v1/auth/logout",
+            null,
+            cancellationToken);
+    }
+
+    public async Task<Result<UsuarioSesion>> ObtenerSesionAsync(
+        string? token = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendAsync<UsuarioSesion>(
+            HttpMethod.Get,
+            "/api/v1/auth/me",
+            null,
+            cancellationToken,
+            token);
+    }
+
+    public async Task<Result<IReadOnlyList<AdminUsuario>>> AdminListarUsuariosAsync(
+        string? busqueda,
+        CancellationToken cancellationToken = default)
+    {
+        var ruta = string.IsNullOrWhiteSpace(busqueda)
+            ? "/api/v1/admin/usuarios"
+            : $"/api/v1/admin/usuarios?busqueda={Uri.EscapeDataString(busqueda.Trim())}";
+
+        return await GetAsync<IReadOnlyList<AdminUsuario>>(ruta, cancellationToken);
+    }
+
+    public async Task<Result<IReadOnlyList<SolicitudOperadorAdmin>>> AdminSolicitudesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<IReadOnlyList<SolicitudOperadorAdmin>>(
+            "/api/v1/admin/usuarios/solicitudes",
+            cancellationToken);
+    }
+
+    public async Task<Result<IReadOnlyList<ComedorOpcion>>> AdminComedoresAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<IReadOnlyList<ComedorOpcion>>(
+            "/api/v1/admin/usuarios/comedores",
+            cancellationToken);
+    }
+
+    public async Task<Result> AdminAprobarAsync(
+        Guid usuarioId,
+        AprobarOperadorRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendWithoutResponseAsync(
+            HttpMethod.Post,
+            $"/api/v1/admin/usuarios/{usuarioId}/aprobar",
+            request,
+            cancellationToken);
+    }
+
+    public async Task<Result> AdminRechazarAsync(
+        Guid usuarioId,
+        RechazarSolicitudRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendWithoutResponseAsync(
+            HttpMethod.Post,
+            $"/api/v1/admin/usuarios/{usuarioId}/rechazar",
+            request,
+            cancellationToken);
+    }
+
+    public async Task<Result> AdminCambiarRolAsync(
+        Guid usuarioId,
+        CambiarRolRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendWithoutResponseAsync(
+            HttpMethod.Put,
+            $"/api/v1/admin/usuarios/{usuarioId}/rol",
+            request,
+            cancellationToken);
+    }
+
+    public async Task<Result> AdminCambiarEstadoAsync(
+        Guid usuarioId,
+        CambiarEstadoUsuarioRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendWithoutResponseAsync(
+            HttpMethod.Put,
+            $"/api/v1/admin/usuarios/{usuarioId}/estado",
+            request,
+            cancellationToken);
+    }
+
+    public async Task<Result> AdminAsignarComedoresAsync(
+        Guid usuarioId,
+        ActualizarAsignacionesRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendWithoutResponseAsync(
+            HttpMethod.Put,
+            $"/api/v1/admin/usuarios/{usuarioId}/comedores",
+            request,
+            cancellationToken);
     }
 
     private async Task<Result<T>> GetAsync<T>(string ruta, CancellationToken cancellationToken)
     {
+        return await SendAsync<T>(HttpMethod.Get, ruta, null, cancellationToken);
+    }
+
+    private async Task<Result<T>> SendAsync<T>(
+        HttpMethod metodo,
+        string ruta,
+        object? cuerpo,
+        CancellationToken cancellationToken,
+        string? tokenExplicito = null)
+    {
         try
         {
-            using var respuesta = await httpClient.GetAsync(ruta, cancellationToken);
+            using var solicitud = CrearSolicitud(metodo, ruta, cuerpo, tokenExplicito);
+            using var respuesta = await httpClient.SendAsync(solicitud, cancellationToken);
 
             if (respuesta.IsSuccessStatusCode)
             {
@@ -121,17 +296,68 @@ public sealed class RescautaApiClient(HttpClient httpClient, ILogger<RescautaApi
         }
     }
 
-    /// <summary>
-    /// Convierte una respuesta de error de la API en un Result con el motivo que la API
-    /// explico. Si el cuerpo no es el ProblemDetails esperado, se usa el status: mejor un
-    /// "HTTP 500" en pantalla que un error vacio.
-    /// </summary>
-    private static async Task<Result<T>> TraducirErrorAsync<T>(
+    private async Task<Result> SendWithoutResponseAsync(
+        HttpMethod metodo,
+        string ruta,
+        object? cuerpo,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var solicitud = CrearSolicitud(metodo, ruta, cuerpo, null);
+            using var respuesta = await httpClient.SendAsync(solicitud, cancellationToken);
+
+            if (respuesta.IsSuccessStatusCode)
+            {
+                return Result.Success();
+            }
+
+            return await TraducirErrorAsync(respuesta, cancellationToken);
+        }
+        catch (Exception ex) when (EsFalloDeConexion(ex))
+        {
+            logger.LogWarning(ex, "Fallo de red al llamar a {Ruta}.", ruta);
+
+            return Result.Failure("api_no_disponible", ApiNoDisponible);
+        }
+    }
+
+    private HttpRequestMessage CrearSolicitud(
+        HttpMethod metodo,
+        string ruta,
+        object? cuerpo,
+        string? tokenExplicito)
+    {
+        var solicitud = new HttpRequestMessage(metodo, ruta);
+        var token = tokenExplicito ?? TokenActual;
+
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+
+        if (cuerpo is not null)
+        {
+            solicitud.Content = new StringContent(
+                JsonSerializer.Serialize(cuerpo, Json),
+                Encoding.UTF8,
+                "application/json");
+        }
+
+        return solicitud;
+    }
+
+    private async Task<Result<T>> TraducirErrorAsync<T>(
         HttpResponseMessage respuesta,
         CancellationToken cancellationToken)
     {
-        var error = await respuesta.Content
-            .ReadFromJsonAsync<ApiError>(Json, cancellationToken);
+        if (respuesta.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            httpContextAccessor.HttpContext?.Session.Remove(AuthSessionKeys.Token);
+            return Result<T>.Failure("api_no_autorizado", ApiSesionExpirada);
+        }
+
+        var error = await LeerErrorAsync(respuesta, cancellationToken);
 
         var detalle = string.IsNullOrWhiteSpace(error?.Detalle)
             ? $"La API respondio HTTP {(int)respuesta.StatusCode} ({respuesta.StatusCode})."
@@ -142,23 +368,65 @@ public sealed class RescautaApiClient(HttpClient httpClient, ILogger<RescautaApi
             detalle);
     }
 
-    /// <summary>
-    /// Solo las excepciones de CONEXION y de TIEMPO se convierten en "API no disponible".
-    /// Un JsonException o un fallo de logica es un error de este cliente y debe verse como
-    /// 500, no disfrazarse de "arranca la API".
-    ///
-    /// El cancelado va aqui a proposito: si el usuario cierra la pestaña o navega, el
-    /// timeout de HttpClient lanza TaskCanceledException y no tiene sentido mostrarle un
-    /// error de conexion.
-    /// </summary>
+    private async Task<Result> TraducirErrorAsync(
+        HttpResponseMessage respuesta,
+        CancellationToken cancellationToken)
+    {
+        if (respuesta.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            httpContextAccessor.HttpContext?.Session.Remove(AuthSessionKeys.Token);
+            return Result.Failure("api_no_autorizado", ApiSesionExpirada);
+        }
+
+        var error = await LeerErrorAsync(respuesta, cancellationToken);
+
+        var detalle = string.IsNullOrWhiteSpace(error?.Detalle)
+            ? $"La API respondio HTTP {(int)respuesta.StatusCode} ({respuesta.StatusCode})."
+            : error!.Detalle;
+
+        return Result.Failure(
+            error?.Titulo ?? $"http_{(int)respuesta.StatusCode}",
+            detalle);
+    }
+
+    private static async Task<ApiError?> LeerErrorAsync(
+        HttpResponseMessage respuesta,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await respuesta.Content.ReadFromJsonAsync<ApiError>(Json, cancellationToken);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private static bool EsFalloDeConexion(Exception ex) =>
         ex is HttpRequestException or TaskCanceledException;
 }
 
-/// <summary>
-/// Resultado de una llamada a la API. Es deliberately simple: o hay valor, o hay un codigo
-/// y un motivo en texto.
-/// </summary>
+public sealed class Result
+{
+    private Result(bool exito, string? codigo, string? mensaje)
+    {
+        Exito = exito;
+        Codigo = codigo;
+        Mensaje = mensaje;
+    }
+
+    public bool Exito { get; }
+
+    public string? Codigo { get; }
+
+    public string? Mensaje { get; }
+
+    public static Result Success() => new(true, null, null);
+
+    public static Result Failure(string codigo, string mensaje) => new(false, codigo, mensaje);
+}
+
 public sealed class Result<T>
 {
     private Result(bool exito, T? valor, string? codigo, string? mensaje)

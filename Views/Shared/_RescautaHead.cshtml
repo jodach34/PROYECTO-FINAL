@@ -1,36 +1,42 @@
-@*
-    Cabecera comun de las 3 pantallas de Rescauta.
-    Tailwind via Play CDN (v3) + paleta de marca centralizada.
-    Mockerup estatico: sin bundle, sin Tailwind CLI.
-*@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Rescauta</title>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand:     '#2D7A41',
-                        'brand-dk':'#215A30',
-                        'brand-lt':'#EAF3EC',
-                        canvas:    '#F8F9FA',
-                        ink:       '#1F2937',
-                        muted:     '#6B7280',
-                        ok:        '#28A745',
-                        alerta:    '#FD7E14',
-                        critico:   '#DC3545'
-                    },
-                    boxShadow: {
-                        card: '0 1px 2px rgba(31,41,55,.04), 0 4px 16px rgba(31,41,55,.06)'
+@{
+    var title = (ViewData["Title"] as string) ?? "Rescauta";
+    var description = (ViewData["MetaDescription"] as string)
+        ?? "Rescauta conecta comedores comunitarios, donantes y voluntarios para que ningún plato de comida se pierda.";
+}
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>@title · Rescauta</title>
+<meta name="description" content="@description" />
+<meta name="theme-color" content="#0b2a1d" />
+<meta property="og:title" content="@title · Rescauta" />
+<meta property="og:description" content="@description" />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    rescauta: {
+                        50: "#f2f8f4",
+                        100: "#e7f3ec",
+                        500: "#35a572",
+                        600: "#27865d",
+                        700: "#1b6b4a",
+                        800: "#145039",
+                        900: "#103a28",
+                        950: "#0b2a1d"
                     }
+                },
+                fontFamily: {
+                    sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+                    display: ["Manrope", "Inter", "ui-sans-serif", "sans-serif"]
                 }
             }
-        };
-    </script>
-</head>
+        }
+    };
+</script>
+<link rel="stylesheet" href="~/css/rescauta.css" asp-append-version="true" />

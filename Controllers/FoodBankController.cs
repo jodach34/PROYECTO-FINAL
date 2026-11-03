@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PROYECTO_FINAL.Models;
 using PROYECTO_FINAL.Models.Api;
@@ -12,6 +13,7 @@ namespace PROYECTO_FINAL.Controllers;
 /// F5 del operador no vuelve a mandar la misma donacion, que es el fallo clasico de un
 /// formulario que se queda en la misma pantalla tras guardar.
 /// </summary>
+[Authorize(Roles = "Donante,Operador,Coordinador,Administrador")]
 public class FoodBankController(RescautaApiClient api) : Controller
 {
     /// <param name="registrado">
@@ -118,7 +120,14 @@ public class FoodBankController(RescautaApiClient api) : Controller
             .OrderBy(c => c.Nombre)
             .ToList();
 
-        var donaciones = await api.ObtenerDonacionesAsync(10, cancellationToken);
+        var soloDonante = User.IsInRole("Donante") &&
+                          !User.IsInRole("Operador") &&
+                          !User.IsInRole("Coordinador") &&
+                          !User.IsInRole("Administrador");
+
+        var donaciones = soloDonante
+            ? await api.ObtenerMisDonacionesAsync(10, cancellationToken)
+            : await api.ObtenerDonacionesAsync(10, cancellationToken);
 
         return new BancoAlimentosViewModel
         {

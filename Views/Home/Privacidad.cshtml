@@ -1,0 +1,82 @@
+@{
+    Layout = "_PublicLayout";
+}
+<section class="border-b border-[#dce7df] bg-[#fbfdf9]">
+    <div class="rs-container py-12 sm:py-16">
+        <p class="rs-eyebrow">Privacidad</p>
+        <h1 class="rs-title max-w-4xl">Qué datos usa Rescauta y para qué.</h1>
+        <p class="rs-lead">
+            Esta política describe la versión actual de la plataforma. Es un proyecto académico en desarrollo y no sustituye una revisión legal profesional.
+        </p>
+        <p class="mt-4 text-[0.72rem] font-semibold text-[#5f6f66]">Última actualización: noviembre de 2026.</p>
+    </div>
+</section>
+
+<section class="rs-section">
+    <div class="rs-container grid gap-8 lg:grid-cols-[0.36fr_0.64fr]">
+        <aside class="h-fit rounded-2xl border border-[#dce7df] bg-white p-5">
+            <p class="text-[0.62rem] font-black uppercase tracking-[0.14em] text-[#1b6b4a]">En esta página</p>
+            <nav class="mt-3 grid gap-2 text-[0.76rem] font-bold text-[#5f6f66]">
+                <a class="hover:text-[#1b6b4a]" href="#datos">Datos que se muestran</a>
+                <a class="hover:text-[#1b6b4a]" href="#donaciones">Donaciones y seguimiento</a>
+                <a class="hover:text-[#1b6b4a]" href="#cuentas">Cuentas y acceso</a>
+                <a class="hover:text-[#1b6b4a]" href="#terceros">Servicios de terceros</a>
+                <a class="hover:text-[#1b6b4a]" href="#contacto-privacidad">Contacto</a>
+            </nav>
+        </aside>
+
+        <div class="space-y-5">
+            <article class="rs-panel" id="datos">
+                <div class="rs-panel__body">
+                    <h2 class="font-display text-lg font-extrabold tracking-[-0.03em]">Datos que se muestran</h2>
+                    <p class="mt-2 text-sm leading-7 text-[#5f6f66]">
+                        El directorio público muestra el nombre del comedor, su distrito, una dirección de referencia, el teléfono de contacto cuando la organización lo publica, su capacidad de raciones, su inventario y el estado de abastecimiento. No se muestran datos de las personas que reciben alimentos.
+                    </p>
+                </div>
+            </article>
+
+            <article class="rs-panel" id="donaciones">
+                <div class="rs-panel__body">
+                    <h2 class="font-display text-lg font-extrabold tracking-[-0.03em]">Donaciones y seguimiento</h2>
+                    <p class="mt-2 text-sm leading-7 text-[#5f6f66]">
+                        Al registrar una donación se guardan el insumo, la cantidad, el comedor de destino, el nombre de quien dona y un punto de recogida opcional. El código de seguimiento permite consultar únicamente esa donación; no da acceso a la lista completa ni a datos de otras personas.
+                    </p>
+                    <p class="mt-2 text-sm leading-7 text-[#5f6f66]">
+                        No se solicitan datos de tarjetas, cuentas bancarias ni documentos de identidad. La versión actual no procesa pagos.
+                    </p>
+                </div>
+            </article>
+
+            <article class="rs-panel" id="cuentas">
+                <div class="rs-panel__body">
+                    <h2 class="font-display text-lg font-extrabold tracking-[-0.03em]">Cuentas y acceso</h2>
+                    <p class="mt-2 text-sm leading-7 text-[#5f6f66]">
+                        Las pantallas de inicio de sesión, registro y recuperación son una vista previa visual. Todavía no existe autenticación real ni almacenamiento de contraseñas. No se debe introducir una contraseña que se use en otros servicios.
+                    </p>
+                </div>
+            </article>
+
+            <article class="rs-panel" id="terceros">
+                <div class="rs-panel__body">
+                    <h2 class="font-display text-lg font-extrabold tracking-[-0.03em]">Servicios de terceros</h2>
+                    <p class="mt-2 text-sm leading-7 text-[#5f6f66]">
+                        La interfaz carga tipografías de Google Fonts y utilidades de Tailwind desde sus CDN. Esos servicios pueden recibir la dirección IP del navegador al entregar sus archivos. Las fotografías usadas con fines demostrativos se alojan localmente en la aplicación.
+                    </p>
+                    <p class="mt-2 text-sm leading-7 text-[#5f6f66]">
+                        No se utilizan herramientas de analítica, publicidad ni seguimiento de comportamiento en esta versión.
+                    </p>
+                </div>
+            </article>
+
+            <article class="rs-panel" id="contacto-privacidad">
+                <div class="rs-panel__body">
+                    <h2 class="font-display text-lg font-extrabold tracking-[-0.03em]">Contacto</h2>
+                    <p class="mt-2 text-sm leading-7 text-[#5f6f66]">
+                        Para consultas sobre datos o para solicitar la corrección de la información de un comedor, usa el formulario de contacto. El envío de mensajes todavía está pendiente de integración.
+                    </p>
+                    <a class="rs-btn rs-btn--secondary mt-4" asp-controller="Home" asp-action="Contacto">Ir a contacto</a>
+                </div>
+            </article>
+        </div>
+    </div>
+</section>

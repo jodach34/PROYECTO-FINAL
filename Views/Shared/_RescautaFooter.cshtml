@@ -1,0 +1,67 @@
+@{
+    var year = DateTime.Now.Year;
+}
+<footer class="rs-footer">
+    <div class="rs-container py-14">
+        <div class="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.35fr_1fr_1fr_1fr]">
+            <div>
+                <a class="rs-brand rs-brand--inverse" asp-controller="Home" asp-action="Index" aria-label="Rescauta, ir al inicio">
+                    <span class="rs-brand__mark" aria-hidden="true">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 12h16" />
+                            <path d="M5 12a7 7 0 0 0 14 0" />
+                            <path d="M8 8c1.2-2.2 2.6-3.3 4-3.3S14.8 5.8 16 8" />
+                            <path d="M9 16h6" />
+                        </svg>
+                    </span>
+                    <span>
+                        <span class="rs-brand__name">Rescauta</span>
+                        <span class="rs-brand__tag">Comida que vuelve a servir</span>
+                    </span>
+                </a>
+                <p class="mt-5 max-w-sm text-sm leading-7 text-white/60">
+                    Una plataforma para conectar alimentos disponibles con comedores comunitarios, reducir el desperdicio y hacer visible el trabajo de quienes cocinan todos los días.
+                </p>
+                <p class="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-[0.12em] text-white/50">
+                    <span class="h-1.5 w-1.5 rounded-full bg-[#c9e79d]"></span>
+                    Proyecto académico en desarrollo
+                </p>
+            </div>
+
+            <div>
+                <p class="rs-footer__title">Plataforma</p>
+                <nav aria-label="Enlaces de la plataforma">
+                    <a class="rs-footer__link" asp-controller="Comedores" asp-action="Index">Directorio de comedores</a>
+                    <a class="rs-footer__link" asp-controller="Home" asp-action="Donaciones">Cómo donar</a>
+                    <a class="rs-footer__link" asp-controller="Seguimiento" asp-action="Index">Seguir una donación</a>
+                    <a class="rs-footer__link" asp-controller="Home" asp-action="ComoFunciona">Cómo funciona</a>
+                </nav>
+            </div>
+
+            <div>
+                <p class="rs-footer__title">Organización</p>
+                <nav aria-label="Enlaces de la organización">
+                    <a class="rs-footer__link" asp-controller="Home" asp-action="Nosotros">Nosotros</a>
+                    <a class="rs-footer__link" asp-controller="Home" asp-action="Contacto">Contacto</a>
+                    <a class="rs-footer__link" asp-controller="Home" asp-action="Privacidad">Privacidad</a>
+                    <a class="rs-footer__link" asp-controller="Home" asp-action="ComoFunciona">Transparencia</a>
+                </nav>
+            </div>
+
+            <div>
+                <p class="rs-footer__title">Acceso</p>
+                <nav aria-label="Enlaces de acceso">
+                    <a class="rs-footer__link" asp-controller="Cuenta" asp-action="Login">Iniciar sesión</a>
+                    <a class="rs-footer__link" asp-controller="Cuenta" asp-action="Registro">Crear cuenta</a>
+                    <a class="rs-footer__link" asp-controller="Cuenta" asp-action="RecuperarPassword">Recuperar acceso</a>
+                    <a class="rs-footer__link" asp-controller="ControlPanel" asp-action="Index">Panel de gestión</a>
+                </nav>
+            </div>
+        </div>
+
+        <div class="mt-12 flex flex-col gap-3 border-t border-white/10 pt-6 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between">
+            <p>&copy; @year Rescauta. Todas las marcas y fotografías se usan con fines demostrativos.</p>
+            <p>Hecho para que la comida encuentre a quien la necesita.</p>
+        </div>
+    </div>
+</footer>

@@ -1,11 +1,15 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Asp.Versioning;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Rescauta.Api.HealthChecks;
 using Rescauta.Api.Middleware;
+using Rescauta.Api.Security;
 using Rescauta.Application;
 using Rescauta.Application.Interfaces.Caching;
 using Rescauta.Application.Interfaces.RealTime;
@@ -160,6 +164,46 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddResponseCompression();
 
+builder.Services
+    .AddAuthentication(AuthPolicies.Scheme)
+    .AddScheme<AuthenticationSchemeOptions, AuthSessionAuthenticationHandler>(
+        AuthPolicies.Scheme,
+        _ => { });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(
+        AuthPolicies.Admin,
+        policy => policy.RequireRole(AuthPolicies.RolAdministrador));
+
+    options.AddPolicy(
+        AuthPolicies.Operacion,
+        policy => policy.RequireRole(
+            AuthPolicies.RolOperador,
+            AuthPolicies.RolCoordinador,
+            AuthPolicies.RolAdministrador));
+
+    options.AddPolicy(
+        AuthPolicies.Donar,
+        policy => policy.RequireRole(
+            AuthPolicies.RolDonante,
+            AuthPolicies.RolOperador,
+            AuthPolicies.RolCoordinador,
+            AuthPolicies.RolAdministrador));
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("auth", limiter =>
+    {
+        limiter.PermitLimit = 10;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+        limiter.AutoReplenishment = true;
+    });
+});
+
 // -----------------------------------------------------------------------------
 // 7. Health checks: /health (infraestructura) sirve a los contenedores y a Docker.
 // -----------------------------------------------------------------------------
@@ -240,6 +284,11 @@ if (app.Environment.IsDevelopment())
 app.UseCors(CorsPolicyName);
 
 app.UseResponseCompression();
+
+app.UseRateLimiter();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 

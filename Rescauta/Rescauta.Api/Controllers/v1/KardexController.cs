@@ -1,6 +1,8 @@
 using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rescauta.Api.Controllers;
+using Rescauta.Api.Security;
 using Rescauta.Application.Features.Kardex;
 using Rescauta.Application.Features.Kardex.Dto;
 using Rescauta.Domain.Entities.Kardex;
@@ -23,6 +25,7 @@ namespace Rescauta.Api.Controllers.v1;
 /// </summary>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
+[Authorize(Policy = AuthPolicies.Operacion)]
 public sealed class KardexController(IKardexService kardexService) : ApiControllerBase
 {
     /// <summary>

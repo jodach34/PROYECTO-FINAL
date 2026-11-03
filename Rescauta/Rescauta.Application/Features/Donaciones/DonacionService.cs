@@ -36,6 +36,7 @@ public sealed class DonacionService(
 
     public async Task<Result<DonacionResultDto>> RegistrarAsync(
         RegistrarDonacionDto donacion,
+        Guid? usuarioId = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(donacion);
@@ -103,7 +104,8 @@ public sealed class DonacionService(
                 donacion.Cantidad,
                 donacion.Donante,
                 GenerarCodigoSeguimiento(),
-                fechaDonacion: null);
+                fechaDonacion: null,
+                usuarioId: usuarioId);
 
             // LA REGLA DE NEGOCIO: el saldo lo mueve el agregado, no el servicio. Si el
             // agregado rechaza la entrada (cantidad cero, campos vacios) no se escribe nada.
@@ -252,6 +254,136 @@ public sealed class DonacionService(
             .ToList();
 
         return Result<IReadOnlyList<DonacionResultDto>>.Success(lista);
+    }
+
+    public async Task<Result<IReadOnlyList<DonacionResultDto>>> ObtenerPorUsuarioAsync(
+        Guid usuarioId,
+        int limite = 50,
+        CancellationToken cancellationToken = default)
+    {
+        if (usuarioId == Guid.Empty)
+        {
+            return Result<IReadOnlyList<DonacionResultDto>>.Failure(
+                DonacionErrorCodes.Validacion,
+                "El usuario es obligatorio.");
+        }
+
+        if (limite is < 1 or > 200)
+        {
+            return Result<IReadOnlyList<DonacionResultDto>>.Failure(
+                DonacionErrorCodes.Validacion,
+                "El limite debe estar entre 1 y 200.");
+        }
+
+        var filas = await (
+            from d in dbContext.Set<Donacion>().AsNoTracking()
+            join i in dbContext.Set<Insumo>().AsNoTracking() on d.InsumoId equals i.Id into insumos
+            from i in insumos.DefaultIfEmpty()
+            join c in dbContext.Set<Comedor>().AsNoTracking() on i.ComedorId equals c.Id into comedores
+            from c in comedores.DefaultIfEmpty()
+            where d.UsuarioId == usuarioId
+            select new
+            {
+                d.Id,
+                d.CodigoSeguimiento,
+                d.InsumoId,
+                InsumoNombre = i != null ? i.Nombre : string.Empty,
+                UnidadMedida = i != null ? i.UnidadMedida : string.Empty,
+                ComedorId = i != null ? i.ComedorId : Guid.Empty,
+                ComedorNombre = c != null ? c.Nombre : string.Empty,
+                d.Cantidad,
+                d.Donante,
+                d.Estado,
+                d.FechaDonacion,
+                d.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var lista = filas
+            .OrderByDescending(d => d.FechaDonacion)
+            .ThenByDescending(d => d.CreatedAt)
+            .Take(limite)
+            .Select(d => new DonacionResultDto
+            {
+                DonacionId = d.Id,
+                CodigoSeguimiento = d.CodigoSeguimiento,
+                InsumoId = d.InsumoId,
+                InsumoNombre = d.InsumoNombre,
+                UnidadMedida = d.UnidadMedida,
+                ComedorId = d.ComedorId,
+                ComedorNombre = d.ComedorNombre,
+                Cantidad = d.Cantidad,
+                Donante = d.Donante,
+                Estado = d.Estado.ToString(),
+                FechaDonacion = d.FechaDonacion
+            })
+            .ToList();
+
+        return Result<IReadOnlyList<DonacionResultDto>>.Success(lista);
+    }
+
+    public async Task<Result<DonacionResultDto>> ObtenerPorCodigoAsync(
+        string codigo,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return Result<DonacionResultDto>.Failure(
+                DonacionErrorCodes.Validacion,
+                "Escribe el codigo de seguimiento de tu donacion.");
+        }
+
+        // Los codigos se generan en mayusculas. Normalizar aqui permite que el donante
+        // escriba "don-2026-00421" en minusculas sin recibir un "no existe".
+        var normalizado = codigo.Trim().ToUpperInvariant();
+
+        var fila = await (
+            from d in dbContext.Set<Donacion>().AsNoTracking()
+            join i in dbContext.Set<Insumo>().AsNoTracking() on d.InsumoId equals i.Id into insumos
+            from i in insumos.DefaultIfEmpty()
+            join c in dbContext.Set<Comedor>().AsNoTracking() on i.ComedorId equals c.Id into comedores
+            from c in comedores.DefaultIfEmpty()
+            where d.CodigoSeguimiento == normalizado
+            select new
+            {
+                d.Id,
+                d.CodigoSeguimiento,
+                d.InsumoId,
+                InsumoNombre = i != null ? i.Nombre : string.Empty,
+                UnidadMedida = i != null ? i.UnidadMedida : string.Empty,
+                ComedorId = i != null ? i.ComedorId : Guid.Empty,
+                ComedorNombre = c != null ? c.Nombre : string.Empty,
+                d.Cantidad,
+                d.Donante,
+                d.Estado,
+                d.FechaDonacion,
+                StockActual = i != null ? i.StockActual : 0m
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (fila is null)
+        {
+            return Result<DonacionResultDto>.Failure(
+                DonacionErrorCodes.DonacionNoEncontrada,
+                $"No encontramos una donacion con el codigo {normalizado}. " +
+                "Revisa que este bien escrito o contacta a la coordinacion.");
+        }
+
+        return Result<DonacionResultDto>.Success(new DonacionResultDto
+        {
+            DonacionId = fila.Id,
+            CodigoSeguimiento = fila.CodigoSeguimiento,
+            InsumoId = fila.InsumoId,
+            InsumoNombre = fila.InsumoNombre,
+            UnidadMedida = fila.UnidadMedida,
+            ComedorId = fila.ComedorId,
+            ComedorNombre = fila.ComedorNombre,
+            Cantidad = fila.Cantidad,
+            Donante = fila.Donante,
+            Estado = fila.Estado.ToString(),
+            FechaDonacion = fila.FechaDonacion,
+            StockResultante = fila.StockActual
+        });
     }
 
     /// <summary>

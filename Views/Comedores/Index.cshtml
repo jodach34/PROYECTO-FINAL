@@ -1,0 +1,209 @@
+@model MapaViewModel
+@{
+    Layout = "_PublicLayout";
+    var zonas = Model.Comedores
+        .Select(c => c.Distrito)
+        .Where(d => !string.IsNullOrWhiteSpace(d))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(d => d)
+        .ToList();
+}
+<section class="border-b border-[#dce7df] bg-[#fbfdf9]">
+    <div class="rs-container py-12 sm:py-16">
+        <div class="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div>
+                <p class="rs-eyebrow">Directorio de la red</p>
+                <h1 class="rs-title">Encuentra un comedor cerca de ti.</h1>
+                <p class="rs-lead">
+                    Explora las organizaciones que forman parte de Rescauta, conoce su nivel de abastecimiento y descubre cómo puedes apoyar su trabajo.
+                </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a class="rs-btn rs-btn--secondary" asp-controller="Seguimiento" asp-action="Index">
+                    Seguir donación
+                </a>
+                <a class="rs-btn rs-btn--primary" asp-controller="Home" asp-action="Donaciones">
+                    Quiero donar
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M5 12h14" />
+                        <path d="m12 5 7 7-7 7" />
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="rs-section--tight">
+    <div class="rs-container">
+        @if (!string.IsNullOrWhiteSpace(Model.Error))
+        {
+            <div class="rs-alert rs-alert--warn mb-5" role="status">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+                    <path d="M12 9v4" />
+                    <path d="M12 17h.01" />
+                    <path d="M10.3 4.7 2.9 18a1.7 1.7 0 0 0 1.5 2.5h15.2a1.7 1.7 0 0 0 1.5-2.5L13.7 4.7a1.9 1.9 0 0 0-3.4 0Z" />
+                </svg>
+                <span><strong>No pudimos cargar el directorio.</strong> @Model.Error</span>
+            </div>
+        }
+
+        <div data-directory>
+            <div class="rs-filterbar">
+                <div class="rs-filterbar__grid">
+                    <div>
+                        <label class="rs-label" for="buscar-comedor">Buscar</label>
+                        <div class="rs-search">
+                            <span class="rs-search__icon" aria-hidden="true">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="7" />
+                                    <path d="m20 20-3.5-3.5" />
+                                </svg>
+                            </span>
+                            <input class="rs-input" id="buscar-comedor" type="search" placeholder="Nombre o distrito…" data-directory-search autocomplete="off" />
+                        </div>
+                    </div>
+                    <div>
+                        <label class="rs-label" for="filtrar-estado">Estado</label>
+                        <select class="rs-select" id="filtrar-estado" data-directory-status>
+                            <option value="">Todos los estados</option>
+                            <option value="Abastecido">Abastecido</option>
+                            <option value="Alerta">Alerta</option>
+                            <option value="Emergencia">Emergencia</option>
+                            <option value="SinDatos">Sin datos</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="rs-label" for="filtrar-zona">Zona</label>
+                        <select class="rs-select" id="filtrar-zona" data-directory-zone>
+                            <option value="">Todas las zonas</option>
+                            @foreach (var zona in zonas)
+                            {
+                                <option value="@zona">@zona</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 md:justify-end">
+                        <p class="rs-directory-count whitespace-nowrap" data-directory-count>@Model.Comedores.Count comedores visibles</p>
+                        <div class="rs-view-toggle" role="group" aria-label="Vista del directorio">
+                            <button type="button" data-view="split" class="is-active" aria-pressed="true" title="Vista dividida">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                                    <path d="M12 4v16" />
+                                </svg>
+                                <span class="hidden sm:inline">Ambos</span>
+                            </button>
+                            <button type="button" data-view="list" aria-pressed="false" title="Vista de lista">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                                    <path d="M8 6h12M8 12h12M8 18h12" />
+                                    <path d="M4 6h.01M4 12h.01M4 18h.01" />
+                                </svg>
+                                <span class="hidden sm:inline">Lista</span>
+                            </button>
+                            <button type="button" data-view="map" aria-pressed="false" title="Vista de mapa">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M9 18 3 21V6l6-3 6 3 6-3v15l-6 3-6-3Z" />
+                                    <path d="M9 3v15M15 6v15" />
+                                </svg>
+                                <span class="hidden sm:inline">Mapa</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rs-directory-layout view-split mt-5" data-directory-layout>
+                <div class="rs-directory-list">
+                    @if (Model.Comedores.Count == 0)
+                    {
+                        <div class="rs-empty sm:col-span-2">
+                            <span class="rs-empty__icon" aria-hidden="true">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M4 12h16" />
+                                    <path d="M5 12a7 7 0 0 0 14 0" />
+                                    <path d="M9 16h6" />
+                                </svg>
+                            </span>
+                            <h3>No hay comedores para mostrar</h3>
+                            <p>Cuando la red tenga comedores registrados aparecerán aquí, con su estado de abastecimiento.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var comedor in Model.Comedores)
+                        {
+                            <article class="rs-card rs-card--hover rs-comedor-card"
+                                     data-comedor
+                                     data-search="@($"{comedor.Nombre} {comedor.Distrito}")"
+                                     data-estado="@comedor.Estado"
+                                     data-zona="@comedor.Distrito">
+                                <div class="rs-comedor-card__top">
+                                    <div class="min-w-0">
+                                        <h2 class="rs-comedor-card__title">@comedor.Nombre</h2>
+                                        <p class="rs-comedor-card__meta">@comedor.Distrito</p>
+                                    </div>
+                                    <span class="@Presentacion.ClaseEstado(comedor.Estado)">@Presentacion.EtiquetaEstado(comedor.Estado)</span>
+                                </div>
+
+                                <div class="rs-comedor-card__stats">
+                                    <span class="inline-flex items-center gap-1.5">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <circle cx="9" cy="8" r="3" />
+                                            <path d="M3.5 20c.8-3 2.6-4.4 5.5-4.4s4.7 1.4 5.5 4.4" />
+                                            <path d="M16 5.5a3 3 0 0 1 0 5.8" />
+                                        </svg>
+                                        @comedor.RacionesDiarias raciones/día
+                                    </span>
+                                    <span class="inline-flex items-center gap-1.5">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M3 7h18" />
+                                            <path d="M6 7v13h12V7" />
+                                            <path d="M9 7V4h6v3" />
+                                        </svg>
+                                        @comedor.TotalInsumos insumos
+                                    </span>
+                                </div>
+
+                                <div>
+                                    <div class="mb-1.5 flex items-center justify-between text-[0.65rem] font-bold text-[#5f6f66]">
+                                        <span>Abastecimiento</span>
+                                        <span>@comedor.PorcentajeAbastecimiento.ToString("0.#")%</span>
+                                    </div>
+                                    <div class="rs-progress">
+                                        <span class="@Presentacion.ClaseBarra(comedor.Estado)" style="width:@Math.Clamp(comedor.PorcentajeAbastecimiento, 0m, 100m)%"></span>
+                                    </div>
+                                </div>
+
+                                <div class="rs-comedor-card__footer">
+                                    <span class="text-[0.65rem] font-semibold text-[#5f6f66]">Actualizado por el comedor</span>
+                                    <a class="rs-link-arrow" asp-controller="Comedores" asp-action="Detalle" asp-route-id="@comedor.Id">
+                                        Ver ficha
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M5 12h14" />
+                                            <path d="m12 5 7 7-7 7" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </article>
+                        }
+
+                        <div class="rs-empty sm:col-span-2" data-directory-empty hidden>
+                            <span class="rs-empty__icon" aria-hidden="true">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="7" />
+                                    <path d="m20 20-3.5-3.5" />
+                                </svg>
+                            </span>
+                            <h3>No encontramos coincidencias</h3>
+                            <p>Prueba con otro nombre, cambia el estado o selecciona una zona distinta.</p>
+                        </div>
+                    }
+                </div>
+
+                <div class="rs-directory-map" data-directory-map>
+                    @await Html.PartialAsync("_MapaComedores", Model)
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

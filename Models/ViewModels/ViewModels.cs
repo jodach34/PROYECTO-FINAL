@@ -110,42 +110,35 @@ public class DonacionViewModel
 }
 
 /// <summary>
-/// Estado y Sesion: lo que hay guardado en la cookie, en la sesion del servidor y en
-/// TempData, para poder compararlos lado a lado.
+/// Seguimiento publico de una donacion. El donante ingresa el codigo que recibio al
+/// registrarla y ve el estado real, el comedor destino y el insumo donado.
 ///
-/// <see cref="Cookies"/> se trae el dictionary crudo de la peticion. Es lo que ve el
-/// navegador entero, incluidas las cookies de antiforgery y de sesion: por eso esta pagina
-/// sirve tambien para ver, con mis propios ojos, cuales ha ido dejando el framework.
+/// No muestra la lista completa de donaciones: solo la que corresponde al codigo buscado.
+/// Ese codigo es el mismo que genera el Banco de Alimentos, asi que las dos pantallas
+/// forman un flujo cerrado.
 /// </summary>
-public sealed record StateDemoViewModel
+public sealed record SeguimientoViewModel
 {
-    /// <summary>Contador que vive en la cookie del cliente.</summary>
-    public int VisitaActual { get; init; }
+    public string Codigo { get; init; } = string.Empty;
 
-    /// <summary>Contador que vive en la sesion del servidor.</summary>
-    public int VisitasServidor { get; init; }
+    public DonacionRegistrada? Donacion { get; init; }
 
-    public string Turno { get; init; } = string.Empty;
+    public string? Error { get; init; }
 
-    public string ComedorActivo { get; init; } = string.Empty;
+    /// <summary>Pasos del flujo, para explicar que significa cada estado.</summary>
+    public static IReadOnlyList<string> Pasos { get; } =
+        ["Pendiente", "Confirmada", "EnTransito", "Entregada"];
 
-    public string OperadorGuardado { get; init; } = string.Empty;
+    public bool EsEstado(string estado) =>
+        string.Equals(Donacion?.Estado, estado, StringComparison.OrdinalIgnoreCase);
+}
 
-    public string UltimaVisita { get; init; } = string.Empty;
+/// <summary>Ficha publica de un comedor, con su inventario actual.</summary>
+public sealed record ComedorDetalleViewModel
+{
+    public ComedorDetalle? Comedor { get; init; }
 
-    /// <summary>Aviso que venia en TempData desde el request anterior, si habia.</summary>
-    public string? Aviso { get; init; }
-
-    public IReadOnlyDictionary<string, string> Cookies { get; init; } = new Dictionary<string, string>();
-
-    /// <summary>
-    /// Un insumo real de la red, para el boton que hace el POST de prueba contra la API.
-    /// Es null si la API no responde o si no hay ninguno registrado, y la vista lo oculta:
-    /// un boton que va a fallar no debe aparecer.
-    /// </summary>
-    public Guid? InsumoDemo { get; init; }
-
-    public string? InsumoDemoNombre { get; init; }
+    public string? Error { get; init; }
 }
 
 /// <summary>
@@ -158,16 +151,18 @@ public sealed record StateDemoViewModel
 /// </summary>
 public static class Presentacion
 {
-    /// <summary>Clases de Tailwind para la insignia de estado.</summary>
-    public static string ClaseEstado(string estado) => estado switch
+    public static string EtiquetaEstado(string estado) => estado switch
     {
-        "Abastecido" => "bg-ok/10 text-ok border-ok/25",
-        "Alerta" => "bg-alerta/10 text-alerta border-alerta/25",
-        "Emergencia" => "bg-critico/10 text-critico border-critico/25",
-        _ => "bg-gray-100 text-muted border-gray-200"
+        "Abastecido" => "Abastecido",
+        "Alerta" => "Alerta",
+        "Emergencia" => "Emergencia",
+        _ => "Sin datos"
     };
 
-    /// <summary>Color solido, sin fondo translucido, para el pin del mapa.</summary>
+    /// <summary>Clases del sistema visual comun para la insignia de estado.</summary>
+    public static string ClaseEstado(string estado) => $"rs-badge rs-badge--{ColorEstado(estado)}";
+
+    /// <summary>Color semantico reutilizado por pines, barras y puntos.</summary>
     public static string ColorEstado(string estado) => estado switch
     {
         "Abastecido" => "ok",
@@ -176,12 +171,7 @@ public static class Presentacion
         _ => "muted"
     };
 
-    /// <summary>Texto del color, para las barras de porcentaje.</summary>
-    public static string TextColorEstado(string estado) => estado switch
-    {
-        "Abastecido" => "text-ok",
-        "Alerta" => "text-alerta",
-        "Emergencia" => "text-critico",
-        _ => "text-muted"
-    };
+    public static string ClaseBarra(string estado) => $"rs-progress__bar rs-progress__bar--{ColorEstado(estado)}";
+
+    public static string ClasePin(string estado) => $"rs-pin rs-pin--{ColorEstado(estado)}";
 }
