@@ -1,0 +1,3 @@
+# El entrypoint corre dentro de Linux: si se convierte a CRLF, el shebang falla.
+docker-entrypoint.sh text eol=lf
+Dockerfile text eol=lf

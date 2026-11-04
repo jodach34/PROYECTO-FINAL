@@ -66,22 +66,40 @@ WORKDIR /app
 
 COPY --from=build /app/publish ./
 
+# --- Entrypoint -----------------------------------------------------------------
+# En Render el disco persistente se monta en /app/data en tiempo de ejecucion y tapa
+# el directorio de la imagen, incluido el chown de build. El script arranca como root,
+# hace chown de /app/data y baja a $APP_UID antes de ejecutar la API.
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# setpriv viene en util-linux, incluido en la imagen Ubuntu de .NET. El entrypoint
+# tambien usa id, chown, chmod, find, mkdir, sh y rm. Si falta cualquiera, el build
+# falla aqui en vez de fallar en produccion al intentar bajar privilegios.
+RUN for tool in \
+        /usr/bin/setpriv \
+        /usr/bin/id \
+        /usr/bin/chown \
+        /usr/bin/chmod \
+        /usr/bin/find \
+        /usr/bin/mkdir \
+        /bin/sh \
+        /bin/rm; do \
+        test -x "$tool" || { echo "ERROR: falta $tool" >&2; exit 1; }; \
+    done
+
 # --- Carpeta de la base de datos ---------------------------------------------
-# SQLite es UN ARCHIVO, y ese archivo tiene que estar en un sitio que el usuario de la
-# imagen pueda escribir. Este paso es obligatorio, no cosmetico: la imagen base corre
-# como root, /app queda propiedad de root, y mas abajo se ejecuta como $APP_UID. Sin
-# mkdir+chown, el arranque falla con "SqliteException: unable to open database file" y
-# la API se queda sin base de datos.
+# SQLite es UN ARCHIVO y debe vivir en /app/data. En Render esa ruta es un disco
+# persistente; el mkdir/chown de build sirve para ejecuciones locales sin volumen,
+# pero el volumen montado puede ser root-owned y ocultar este directorio. Por eso el
+# entrypoint repite el chown al arrancar antes de bajar a $APP_UID.
 RUN mkdir -p /app/data && chown -R $APP_UID:$APP_UID /app/data
 
 # --- Base de datos por defecto ------------------------------------------------
-# Esta cadena es la que se usa en el plan gratis de Render, donde NO hay disco: el
-# archivo vive en el sistema de archivos efimero del contenedor. Sobrevive a los
-# reinicios, pero NO a un redespliegue (ahi se vuelve a crear y la semilla corre de
-# nuevo). Para que los datos persistan hay dos pasos, en este orden:
-#   1) Poner el plan del servicio en "starter" y anadir el bloque "disk:" de
-#      render.yaml, que monta un volumen en /var/data.
-#   2) Cambiar esta variable a  Data Source=/var/data/rescauta.db
+# La API usa SQLite en /app/data/rescauta.db. En Render, /app/data es el punto de
+# montaje del disco persistente de 1 GB declarado en render.yaml; asi el archivo
+# sobrevive a reinicios y despliegues. Sin disco, la ruta sigue funcionando pero el
+# archivo es efimero.
 ENV Database__Provider=Sqlite
 ENV Database__ConnectionString="Data Source=/app/data/rescauta.db"
 
@@ -91,6 +109,9 @@ ENV Database__ConnectionString="Data Source=/app/data/rescauta.db"
 ENV Database__MigrateOnStartup=true
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV DOTNET_RUNNING_IN_CONTAINER=true
+
+# HOME explicito: el usuario app tiene /home/app, no /root.
+ENV HOME=/home/app
 
 # --- Puerto --------------------------------------------------------------------
 # Render asigna el puerto en la variable PORT y espera que el contenedor escuche
@@ -106,10 +127,12 @@ ENV DOTNET_RUNNING_IN_CONTAINER=true
 EXPOSE 8080
 
 # --- Usuario sin privilegios ----------------------------------------------------
-# La imagen de runtime .NET ya define APP_UID. Ejecutar como root es innecesario: un
-# incidente en la app no da acceso al host.
-USER $APP_UID
+# El contenedor arranca como root SOLO para que el entrypoint pueda hacer chown del
+# disco persistente (Render lo monta root-owned). El entrypoint baja a $APP_UID con
+# setpriv y falla si no puede; la API nunca queda corriendo como root.
+USER root
 
-# "exec" reemplaza el shell por el proceso de .NET, para que sea el PID 1 y reciba las
-# senales de parada de Render (SIGTERM) en vez de que las ignore el shell intermedio.
-ENTRYPOINT ["sh", "-c", "exec dotnet Rescauta.Api.dll --urls http://+:${PORT:-8080}"]
+# El entrypoint recibe el comando como argumentos y lo ejecuta ya como $APP_UID.
+# "exec" hace que .NET sea el PID 1 y reciba SIGTERM de Render.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["sh", "-c", "exec dotnet Rescauta.Api.dll --urls http://+:${PORT:-8080}"]

@@ -34,24 +34,17 @@
 # -----------------------------------------------------------------------------
 # SOBRE SQLITE Y LA PERSISTENCIA - LEER ANTES DE QUEJARSE
 #
-# Los dos servicios estan en plan: free, y el plan gratis NO tiene disco: su sistema
-# de archivos es efimero. La semilla corre al arrancar, asi que la aplicacion levanta y
-# muestra los 5 comedores de ejemplo, pero TODO lo que se registre (donaciones, kardex)
-# se pierde en cada redespliegue, reinicio o suspension.
+# La API usa SQLite en /app/data/rescauta.db. En Render, /app/data es un disco
+# persistente de 1 GB, asi que usuarios, donaciones y kardex sobreviven a
+# reinicios y redespliegues. El servicio debe estar en un plan de pago: el plan
+# free no permite discos persistentes.
 #
-# Eso es una limitacion del plan, no un error de configuracion. Para que los datos
-# sobrevivan:
-#   1) Pon el plan del servicio rescauta-api en "starter" (de pago) y descomenta el
-#      bloque "disk:" de abajo, que monta un volumen persistente en /var/data.
-#   2) Cambia la variable Database__ConnectionString de rescauta-api a
-#      Data Source=/var/data/rescauta.db
-# Con los dos pasos hechos, el bloque disk de este archivo y la ruta /var/data del
-# contenedor quedan consistentes. Con uno solo de los dos, el servicio no arranca.
+# El disco obliga a una sola instancia (numInstances: 1). Render no puede escalar
+# un servicio con disco ni hacer despliegues sin downtime: detiene la instancia
+# anterior antes de arrancar la nueva.
 #
-# Aviso adicional del plan gratis: tras 15 minutos sin trafico el servicio se suspende
-# y la primera peticion posterior tarda (arranque en frio). Ademas, la sesion del MVC
-# esta en memoria, asi que al suspender y despertar se pierde el comedor que estaba
-# seleccionado: es el comportamiento esperado, no un fallo.
+# Aviso adicional: la sesion del MVC esta en memoria, asi que al reiniciar se
+# pierde el comedor seleccionado; las cuentas y datos de SQLite si se conservan.
 # =============================================================================
 
 services:
@@ -68,7 +61,10 @@ services:
     # directorio del Dockerfile (la raiz, aqui) y darian igual, pero dejarlo explicito
     # evita que alguien lo mueva y rompa el COPY sin avisar.
     dockerContext: .
-    plan: free
+    plan: starter
+    # Un disco persistente no se puede compartir entre instancias. Fijar 1 evita
+    # que un cambio futuro active escalado horizontal sobre SQLite.
+    numInstances: 1
     # /health, no /api/v1/system/readiness: ambos devuelven 200/503, pero /health es el
     # que no depende de la cache. La API crea el esquema ANTES de abrir el puerto, asi
     # que cuando Render empieza a preguntar el esquema ya esta.
@@ -78,18 +74,17 @@ services:
         value: Production
       - key: Database__Provider
         value: Sqlite
-      # Sin disco: el archivo va en el sistema de archivos efimero del contenedor, en
-      # la carpeta /app/data que crea el Dockerfile. Con disco montado, cambiar a
-      # Data Source=/var/data/rescauta.db (ver cabecera).
+      # El disco se monta en /app/data (ver bloque disk). La cadena debe apuntar
+      # exactamente a esa ruta; si se cambia una, hay que cambiar la otra.
       - key: Database__ConnectionString
         value: Data Source=/app/data/rescauta.db
       - key: Database__MigrateOnStartup
         value: "true"
 
-    # disk:
-    #   name: rescauta-data
-    #   mountPath: /var/data
-    #   sizeGB: 1
+    disk:
+      name: rescauta-data
+      mountPath: /app/data
+      sizeGB: 1
 
   # ---------------------------------------------------------------------------
   # Servicio 2: el MVC. Es la pagina que se abre. No tiene base de datos propia.
