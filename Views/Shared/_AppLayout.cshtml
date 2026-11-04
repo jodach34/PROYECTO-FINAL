@@ -5,6 +5,7 @@
     var isPanel = path.StartsWith("/ControlPanel", StringComparison.OrdinalIgnoreCase);
     var isFoodBank = path.StartsWith("/FoodBank", StringComparison.OrdinalIgnoreCase);
     var isDirectory = path.StartsWith("/Comedores", StringComparison.OrdinalIgnoreCase);
+    var isInventory = path.StartsWith("/Inventario", StringComparison.OrdinalIgnoreCase);
     var isTracking = path.StartsWith("/Seguimiento", StringComparison.OrdinalIgnoreCase);
     var isAccount = path.StartsWith("/Cuenta", StringComparison.OrdinalIgnoreCase);
     var isAdmin = path.StartsWith("/AdminUsuarios", StringComparison.OrdinalIgnoreCase);
@@ -80,15 +81,17 @@
                             Usuarios y permisos
                         </a>
                     }
-                    <span class="rs-sidebar__link is-disabled" aria-disabled="true">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M3 7h18" />
-                            <path d="M6 7v13h12V7" />
-                            <path d="M9 7V4h6v3" />
-                        </svg>
-                        Inventario
-                        <span class="rs-sidebar__soon">pronto</span>
-                    </span>
+                    @if (User.IsInRole("Operador") || User.IsInRole("Coordinador") || User.IsInRole("Administrador"))
+                    {
+                        <a class="rs-sidebar__link @(isInventory ? "is-active" : null)" asp-controller="Inventario" asp-action="Index">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M3 7h18" />
+                                <path d="M6 7v13h12V7" />
+                                <path d="M9 7V4h6v3" />
+                            </svg>
+                            Inventario
+                        </a>
+                    }
                     <span class="rs-sidebar__link is-disabled" aria-disabled="true">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <path d="M4 19V5" />

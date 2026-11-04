@@ -9,6 +9,9 @@ public static class ComedorErrorCodes
     public const string ComedorNoEncontrado = "comedor.no_encontrado";
     public const string Validacion = "comedor.validacion";
     public const string ErrorInterno = "comedor.error_interno";
+
+    /// <summary>El usuario no tiene asignado el comedor cuyo kardex intenta consultar.</summary>
+    public const string SinPermiso = "comedor.sin_permiso";
 }
 
 /// <summary>

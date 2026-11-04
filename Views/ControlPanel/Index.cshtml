@@ -51,6 +51,10 @@
             </form>
         }
         <a class="rs-btn rs-btn--secondary" asp-controller="Comedores" asp-action="Index">Ver directorio</a>
+        @if (User.IsInRole("Operador") || User.IsInRole("Coordinador") || User.IsInRole("Administrador"))
+        {
+            <a class="rs-btn rs-btn--secondary" asp-controller="Inventario" asp-action="Index">Inventario</a>
+        }
         <a class="rs-btn rs-btn--primary" asp-controller="FoodBank" asp-action="Index">Registrar donación</a>
     </div>
 </div>

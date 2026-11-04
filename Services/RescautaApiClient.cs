@@ -46,6 +46,32 @@ public sealed class RescautaApiClient(
             cancellationToken);
     }
 
+    public async Task<Result<InsumoRegistrado>> CrearInsumoAsync(
+        CrearInsumoRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return await SendAsync<InsumoRegistrado>(
+            HttpMethod.Post,
+            "/api/v1/kardex/insumos",
+            request,
+            cancellationToken);
+    }
+
+    public async Task<Result<MovimientoKardexResult>> RegistrarMovimientoAsync(
+        MovimientoKardexRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return await SendAsync<MovimientoKardexResult>(
+            HttpMethod.Post,
+            "/api/v1/kardex/movimiento",
+            request,
+            cancellationToken);
+    }
+
     public async Task<Result<IReadOnlyList<DonacionRegistrada>>> ObtenerDonacionesAsync(
         int limite = 50,
         CancellationToken cancellationToken = default)

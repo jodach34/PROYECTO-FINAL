@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Rescauta.Application.Common;
 using Rescauta.Application.Features.Comedores.Dto;
+using Rescauta.Application.Features.Kardex;
 using Rescauta.Application.Interfaces;
 using Rescauta.Domain.Entities.Comedores;
 using Rescauta.Domain.Entities.Kardex;
@@ -183,9 +184,12 @@ public sealed class ComedorService(IAppDbContext dbContext) : IComedorService
 
     public async Task<Result<IReadOnlyList<KardexFilaDto>>> ObtenerKardexAsync(
         Guid comedorId,
+        UsuarioOperacion usuario,
         int limite = 20,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(usuario);
+
         if (comedorId == Guid.Empty)
         {
             return Result<IReadOnlyList<KardexFilaDto>>.Failure(
@@ -198,6 +202,15 @@ public sealed class ComedorService(IAppDbContext dbContext) : IComedorService
             return Result<IReadOnlyList<KardexFilaDto>>.Failure(
                 ComedorErrorCodes.Validacion,
                 "El limite debe estar entre 1 y 200.");
+        }
+
+        // El kardex del comedor es informacion de inventario: no se puede leer el de un
+        // comedor ajeno aunque se conozca su id. Se comprueba antes de tocar los datos.
+        if (!usuario.PuedeOperar(comedorId))
+        {
+            return Result<IReadOnlyList<KardexFilaDto>>.Failure(
+                ComedorErrorCodes.SinPermiso,
+                "No tienes permisos para consultar el kardex de este comedor.");
         }
 
         // Un solo JOIN con subconsulta correlacionada. La alternativa (sacar los ids de los

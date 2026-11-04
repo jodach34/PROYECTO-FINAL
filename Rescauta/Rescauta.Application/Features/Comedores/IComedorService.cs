@@ -1,5 +1,6 @@
 using Rescauta.Application.Common;
 using Rescauta.Application.Features.Comedores.Dto;
+using Rescauta.Application.Features.Kardex;
 
 namespace Rescauta.Application.Features.Comedores;
 
@@ -29,9 +30,13 @@ public interface IComedorService
     /// <summary>
     /// Kardex de un comedor: los movimientos de todos sus insumos, del mas reciente al mas
     /// antiguo. Es la tabla del Panel de Control.
+    ///
+    /// Solo el Administrador puede consultar cualquier comedor. Operador y Coordinador
+    /// quedan limitados a los comedores que tienen asignados.
     /// </summary>
     Task<Result<IReadOnlyList<KardexFilaDto>>> ObtenerKardexAsync(
         Guid comedorId,
+        UsuarioOperacion usuario,
         int limite = 20,
         CancellationToken cancellationToken = default);
 }

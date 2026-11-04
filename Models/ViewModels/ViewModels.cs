@@ -57,6 +57,49 @@ public sealed record PanelViewModel
     public int TotalInsumos => Comedores.Sum(c => c.TotalInsumos);
 }
 
+public sealed record InventarioViewModel
+{
+    public IReadOnlyList<ComedorResumen> Comedores { get; init; } = [];
+
+    public ComedorDetalle? Comedor { get; init; }
+
+    public IReadOnlyList<KardexFila> Kardex { get; init; } = [];
+
+    public string? Error { get; init; }
+
+    public string? Exito { get; init; }
+
+    public InsumoFormViewModel Insumo { get; init; } = new();
+
+    public ConsumoFormViewModel Consumo { get; init; } = new();
+}
+
+public sealed class InsumoFormViewModel
+{
+    public Guid? ComedorId { get; set; }
+
+    public string Nombre { get; set; } = string.Empty;
+
+    public string UnidadMedida { get; set; } = string.Empty;
+
+    public decimal StockInicial { get; set; }
+
+    public decimal StockMaximo { get; set; }
+}
+
+public sealed class ConsumoFormViewModel
+{
+    public Guid? ComedorId { get; set; }
+
+    public Guid? InsumoId { get; set; }
+
+    public decimal Cantidad { get; set; }
+
+    public string Responsable { get; set; } = string.Empty;
+
+    public string Concepto { get; set; } = "Consumo diario";
+}
+
 /// <summary>
 /// Banco de Alimentos: el formulario de donacion y las opciones para llenarlo.
 ///

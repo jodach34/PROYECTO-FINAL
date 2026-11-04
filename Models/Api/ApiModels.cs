@@ -57,6 +57,45 @@ public sealed class InsumoInventario
     public decimal? DiasCobertura { get; set; }
 }
 
+public sealed class CrearInsumoRequest
+{
+    public Guid ComedorId { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public string UnidadMedida { get; set; } = string.Empty;
+    public decimal StockInicial { get; set; }
+    public decimal StockMaximo { get; set; }
+}
+
+public sealed class InsumoRegistrado
+{
+    public Guid InsumoId { get; set; }
+    public Guid ComedorId { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public string UnidadMedida { get; set; } = string.Empty;
+    public decimal StockActual { get; set; }
+    public decimal StockMaximo { get; set; }
+}
+
+public sealed class MovimientoKardexRequest
+{
+    public Guid InsumoId { get; set; }
+    public int TipoMovimiento { get; set; }
+    public decimal Cantidad { get; set; }
+    public string Responsable { get; set; } = string.Empty;
+    public string Concepto { get; set; } = string.Empty;
+    public DateTimeOffset? FechaHora { get; set; }
+}
+
+public sealed class MovimientoKardexResult
+{
+    public Guid MovimientoId { get; set; }
+    public Guid InsumoId { get; set; }
+    public decimal StockActual { get; set; }
+    public string UnidadMedida { get; set; } = string.Empty;
+    public DateTimeOffset FechaHora { get; set; }
+    public int TipoMovimiento { get; set; }
+}
+
 public sealed class KardexFila
 {
     public Guid MovimientoId { get; set; }
