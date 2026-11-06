@@ -57,6 +57,45 @@ public sealed class InsumoInventario
     public decimal? DiasCobertura { get; set; }
 }
 
+public sealed class CrearInsumoRequest
+{
+    public Guid ComedorId { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public string UnidadMedida { get; set; } = string.Empty;
+    public decimal StockInicial { get; set; }
+    public decimal StockMaximo { get; set; }
+}
+
+public sealed class InsumoRegistrado
+{
+    public Guid InsumoId { get; set; }
+    public Guid ComedorId { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public string UnidadMedida { get; set; } = string.Empty;
+    public decimal StockActual { get; set; }
+    public decimal StockMaximo { get; set; }
+}
+
+public sealed class MovimientoKardexRequest
+{
+    public Guid InsumoId { get; set; }
+    public int TipoMovimiento { get; set; }
+    public decimal Cantidad { get; set; }
+    public string Responsable { get; set; } = string.Empty;
+    public string Concepto { get; set; } = string.Empty;
+    public DateTimeOffset? FechaHora { get; set; }
+}
+
+public sealed class MovimientoKardexResult
+{
+    public Guid MovimientoId { get; set; }
+    public Guid InsumoId { get; set; }
+    public decimal StockActual { get; set; }
+    public string UnidadMedida { get; set; } = string.Empty;
+    public DateTimeOffset FechaHora { get; set; }
+    public int TipoMovimiento { get; set; }
+}
+
 public sealed class KardexFila
 {
     public Guid MovimientoId { get; set; }
@@ -88,9 +127,52 @@ public sealed class DonacionRegistrada
     public int Cantidad { get; set; }
     public string UnidadMedida { get; set; } = string.Empty;
     public string Donante { get; set; } = string.Empty;
+    public string? PuntoRecojo { get; set; }
     public string Estado { get; set; } = string.Empty;
     public DateTimeOffset FechaDonacion { get; set; }
+    public DateTimeOffset? FechaConfirmacion { get; set; }
+    public DateTimeOffset? FechaEnTransito { get; set; }
+    public DateTimeOffset? FechaEntrega { get; set; }
+    public DateTimeOffset? FechaCierre { get; set; }
+    public string? MotivoCierre { get; set; }
     public decimal StockResultante { get; set; }
+}
+
+public sealed class DonacionHistorialApi
+{
+    public string EstadoAnterior { get; set; } = string.Empty;
+    public string EstadoNuevo { get; set; } = string.Empty;
+    public string? Motivo { get; set; }
+    public Guid? UsuarioId { get; set; }
+    public DateTimeOffset Fecha { get; set; }
+}
+
+public sealed class MotivoDonacionRequest
+{
+    public string Motivo { get; set; } = string.Empty;
+}
+
+public sealed class DonacionFiltroRequest
+{
+    public string? Estado { get; set; }
+    public Guid? ComedorId { get; set; }
+    public Guid? InsumoId { get; set; }
+    public string? Busqueda { get; set; }
+    public DateTimeOffset? Desde { get; set; }
+    public DateTimeOffset? Hasta { get; set; }
+    public int Pagina { get; set; } = 1;
+    public int TamanoPagina { get; set; } = 20;
+}
+
+public sealed class PagedResultApi<T>
+{
+    public IReadOnlyList<T> Items { get; set; } = [];
+    public int PageNumber { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+    public int TotalPages { get; set; }
+    public bool HasPrevious { get; set; }
+    public bool HasNext { get; set; }
 }
 
 /// <summary>Cuerpo del POST de donacion. Esta vez si es de escritura.</summary>

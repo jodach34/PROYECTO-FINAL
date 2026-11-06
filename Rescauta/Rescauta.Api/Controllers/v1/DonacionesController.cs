@@ -4,23 +4,22 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rescauta.Api.Controllers;
 using Rescauta.Api.Security;
+using Rescauta.Application.Common;
 using Rescauta.Application.Features.Donaciones;
 using Rescauta.Application.Features.Donaciones.Dto;
 
 namespace Rescauta.Api.Controllers.v1;
 
 /// <summary>
-/// Endpoints de donacion. Son los que consume el formulario del Banco de Alimentos.
+/// Endpoints de donacion.
 ///
-///   GET  /api/v1/donaciones          lista las donaciones registradas
-///   POST /api/v1/donaciones          registra una donacion y asienta la entrada en kardex
+/// Flujo:
+///   * POST /donaciones registra la donacion en estado Pendiente. No mueve stock.
+///   * POST /donaciones/{id}/confirmar confirma la recepcion y asienta la entrada al kardex.
+///   * Los endpoints de gestion filtran por los comedores asignados al operador.
 ///
-/// La entidad <c>Donacion</c> ya existia en el dominio pero no tenia controller: el modulo
-/// estaba a medio hacer. Este controller es el que la cierra.
-///
-/// El POST devuelve 201 con la donacion YA confirmada, no un 202: el asiento del kardex se
-/// escribe en la misma transaccion, asi que cuando el cliente recibe la respuesta la
-/// mercancia ya esta en la despensa del comedor.
+/// El POST de registro ya no devuelve una donacion "confirmada": el stock entra recien al
+/// confirmar, que es una accion separada de la coordinacion.
 /// </summary>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
@@ -34,7 +33,17 @@ public sealed class DonacionesController(IDonacionService donacionService) : Api
         [FromQuery] int limite = 50,
         CancellationToken cancellationToken = default)
     {
-        return FromResult(await donacionService.ObtenerAsync(limite, cancellationToken));
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        return FromResult(await donacionService.ObtenerAsync(
+            usuario,
+            limite,
+            cancellationToken));
     }
 
     [HttpGet("mias")]
@@ -69,20 +78,203 @@ public sealed class DonacionesController(IDonacionService donacionService) : Api
         string codigo,
         CancellationToken cancellationToken)
     {
-        var result = await donacionService.ObtenerPorCodigoAsync(codigo, cancellationToken);
+        return FromDonacionResult(
+            await donacionService.ObtenerPorCodigoAsync(codigo, cancellationToken));
+    }
 
-        if (result.IsFailure && result.ErrorCode == DonacionErrorCodes.DonacionNoEncontrada)
+    /// <summary>Listado administrativo paginado y filtrado por comedor.</summary>
+    [HttpGet("gestion")]
+    [Authorize(Policy = AuthPolicies.Operacion)]
+    [ProducesResponseType<PagedResult<DonacionResultDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<DonacionResultDto>>> Buscar(
+        [FromQuery] Rescauta.Domain.Entities.Donaciones.EstadoDonacion? estado,
+        [FromQuery] Guid? comedorId,
+        [FromQuery] Guid? insumoId,
+        [FromQuery] string? busqueda,
+        [FromQuery] DateTimeOffset? desde,
+        [FromQuery] DateTimeOffset? hasta,
+        [FromQuery] int pagina = 1,
+        [FromQuery] int tamanoPagina = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
         {
-            return NotFound(new ProblemDetails
-            {
-                Status = StatusCodes.Status404NotFound,
-                Title = result.ErrorCode,
-                Detail = result.ErrorMessage,
-                Instance = HttpContext.Request.Path
-            });
+            return Unauthorized();
         }
 
-        return FromResult(result);
+        var filtro = new DonacionFiltroDto
+        {
+            Estado = estado,
+            ComedorId = comedorId,
+            InsumoId = insumoId,
+            Busqueda = busqueda,
+            Desde = desde,
+            Hasta = hasta,
+            Pagina = pagina,
+            TamanoPagina = tamanoPagina
+        };
+
+        return FromDonacionResult(
+            await donacionService.BuscarAsync(filtro, usuario, cancellationToken));
+    }
+
+    [HttpGet("{donacionId:guid}")]
+    [Authorize(Policy = AuthPolicies.Operacion)]
+    [ProducesResponseType<DonacionResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DonacionResultDto>> ObtenerPorId(
+        Guid donacionId,
+        CancellationToken cancellationToken)
+    {
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        return FromDonacionResult(
+            await donacionService.ObtenerPorIdAsync(donacionId, usuario, cancellationToken));
+    }
+
+    [HttpGet("{donacionId:guid}/historial")]
+    [Authorize(Policy = AuthPolicies.Operacion)]
+    [ProducesResponseType<IReadOnlyList<DonacionHistorialDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<DonacionHistorialDto>>> ObtenerHistorial(
+        Guid donacionId,
+        CancellationToken cancellationToken)
+    {
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        return FromDonacionResult(
+            await donacionService.ObtenerHistorialAsync(donacionId, usuario, cancellationToken));
+    }
+
+    [HttpPost("{donacionId:guid}/confirmar")]
+    [Authorize(Policy = AuthPolicies.Operacion)]
+    [ProducesResponseType<DonacionResultDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<DonacionResultDto>> Confirmar(
+        Guid donacionId,
+        CancellationToken cancellationToken)
+    {
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        return FromDonacionResult(
+            await donacionService.ConfirmarAsync(donacionId, usuario, cancellationToken));
+    }
+
+    [HttpPost("{donacionId:guid}/en-transito")]
+    [Authorize(Policy = AuthPolicies.Operacion)]
+    [ProducesResponseType<DonacionResultDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<DonacionResultDto>> MarcarEnTransito(
+        Guid donacionId,
+        CancellationToken cancellationToken)
+    {
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        return FromDonacionResult(
+            await donacionService.MarcarEnTransitoAsync(donacionId, usuario, cancellationToken));
+    }
+
+    [HttpPost("{donacionId:guid}/entregar")]
+    [Authorize(Policy = AuthPolicies.Operacion)]
+    [ProducesResponseType<DonacionResultDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<DonacionResultDto>> Entregar(
+        Guid donacionId,
+        CancellationToken cancellationToken)
+    {
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        return FromDonacionResult(
+            await donacionService.EntregarAsync(donacionId, usuario, cancellationToken));
+    }
+
+    [HttpPost("{donacionId:guid}/cancelar")]
+    [Authorize(Policy = AuthPolicies.Operacion)]
+    [ProducesResponseType<DonacionResultDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<DonacionResultDto>> Cancelar(
+        Guid donacionId,
+        [FromBody] MotivoDonacionDto motivo,
+        CancellationToken cancellationToken)
+    {
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        return FromDonacionResult(
+            await donacionService.CancelarAsync(
+                donacionId,
+                motivo,
+                usuario,
+                cancellationToken));
+    }
+
+    [HttpPost("{donacionId:guid}/anular")]
+    [Authorize(Policy = AuthPolicies.Operacion)]
+    [ProducesResponseType<DonacionResultDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<DonacionResultDto>> Anular(
+        Guid donacionId,
+        [FromBody] MotivoDonacionDto motivo,
+        CancellationToken cancellationToken)
+    {
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        return FromDonacionResult(
+            await donacionService.AnularAsync(
+                donacionId,
+                motivo,
+                usuario,
+                cancellationToken));
+    }
+
+    [HttpDelete("{donacionId:guid}")]
+    [Authorize(Policy = AuthPolicies.Operacion)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<ActionResult> Eliminar(
+        Guid donacionId,
+        CancellationToken cancellationToken)
+    {
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        return FromResult(await donacionService.EliminarAsync(
+            donacionId,
+            usuario,
+            cancellationToken));
     }
 
     /// <summary>
@@ -112,8 +304,10 @@ public sealed class DonacionesController(IDonacionService donacionService) : Api
 
         if (result.IsFailure)
         {
-            return FromResult(result);
+            return FromDonacionResult(result);
         }
+
+        Response.Headers.Location = $"/api/v1/donaciones/{result.Value.DonacionId}";
 
         return StatusCode(StatusCodes.Status201Created, result.Value);
     }
@@ -122,4 +316,49 @@ public sealed class DonacionesController(IDonacionService donacionService) : Api
         Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
             ? id
             : null;
+
+    private ActionResult<T> FromDonacionResult<T>(Result<T> result)
+    {
+        if (result.IsSuccess)
+        {
+            return Ok(result.Value);
+        }
+
+        return StatusCode(
+            ObtenerStatus(result.ErrorCode),
+            CrearProblem(result.ErrorCode, result.ErrorMessage));
+    }
+
+    private ActionResult FromDonacionResult(Result result)
+    {
+        if (result.IsSuccess)
+        {
+            return NoContent();
+        }
+
+        return StatusCode(
+            ObtenerStatus(result.ErrorCode),
+            CrearProblem(result.ErrorCode, result.ErrorMessage));
+    }
+
+    private static int ObtenerStatus(string? errorCode) => errorCode switch
+    {
+        DonacionErrorCodes.DonacionNoEncontrada => StatusCodes.Status404NotFound,
+        DonacionErrorCodes.InsumoNoEncontrado => StatusCodes.Status404NotFound,
+        DonacionErrorCodes.SinPermiso => StatusCodes.Status403Forbidden,
+        DonacionErrorCodes.ConflictoConcurrente => StatusCodes.Status409Conflict,
+        DonacionErrorCodes.StockInsuficiente => StatusCodes.Status409Conflict,
+        DonacionErrorCodes.EstadoInvalido => StatusCodes.Status409Conflict,
+        _ => StatusCodes.Status400BadRequest
+    };
+
+    private ProblemDetails CrearProblem(string? errorCode, string? errorMessage) =>
+        new()
+        {
+            Status = ObtenerStatus(errorCode),
+            Title = errorCode ?? "Error",
+            Detail = errorMessage,
+            Instance = HttpContext.Request.Path,
+            Extensions = { ["traceId"] = HttpContext.TraceIdentifier }
+        };
 }

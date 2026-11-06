@@ -1,14 +1,19 @@
+using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Rescauta.Application.Common;
 using Rescauta.Application.Features.Comedores.Dto;
+using Rescauta.Application.Features.Kardex;
 using Rescauta.Application.Interfaces;
 using Rescauta.Domain.Entities.Comedores;
 using Rescauta.Domain.Entities.Kardex;
+using Rescauta.Domain.Exceptions;
 
 namespace Rescauta.Application.Features.Comedores;
 
 /// <summary>
-/// Implementacion de los casos de uso de lectura del mapa.
+/// Implementacion de los casos de uso del mapa y del alta de comedores.
 ///
 /// Dependencia: <see cref="IAppDbContext"/>, no AppDbContext. La capa Application no
 /// referencia Infrastructure (ver Rescauta/README.md).
@@ -17,12 +22,90 @@ namespace Rescauta.Application.Features.Comedores;
 /// abastecimiento" y el "estado" que ordena el mapa se derivan del kardex, asi que si los
 /// calculara la capa API cada pantalla los calcularia distinto.
 /// </summary>
-public sealed class ComedorService(IAppDbContext dbContext) : IComedorService
+public sealed class ComedorService(
+    IAppDbContext dbContext,
+    IValidator<CrearComedorDto> comedorValidator,
+    ILogger<ComedorService> logger) : IComedorService
 {
     /// <summary>
     /// Corte de la franja de "Abastecido". Ver EstadoComedor.DesdePorcentaje.
     /// </summary>
     private const decimal PorcentajeAbastecido = 60m;
+
+    public async Task<Result<ComedorResultDto>> CrearAsync(
+        CrearComedorDto comedor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(comedor);
+
+        var validacion = await comedorValidator.ValidateAsync(comedor, cancellationToken);
+        if (!validacion.IsValid)
+        {
+            return Result<ComedorResultDto>.Failure(
+                ComedorErrorCodes.Validacion,
+                FormatearErrores(validacion));
+        }
+
+        Comedor entidad;
+
+        try
+        {
+            entidad = Comedor.Crear(
+                comedor.Nombre,
+                comedor.Distrito,
+                comedor.RacionesDiarias,
+                comedor.Direccion,
+                comedor.ContactoTelefono,
+                comedor.MapaX,
+                comedor.MapaY);
+        }
+        catch (DomainException ex)
+        {
+            logger.LogWarning(
+                "Alta de comedor rechazada. Nombre={Nombre}. Motivo: {Motivo}",
+                comedor.Nombre,
+                ex.Message);
+
+            return Result<ComedorResultDto>.Failure(ComedorErrorCodes.Validacion, ex.Message);
+        }
+
+        dbContext.Set<Comedor>().Add(entidad);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo guardar el comedor {Nombre} en el distrito {Distrito}.",
+                comedor.Nombre,
+                comedor.Distrito);
+
+            return Result<ComedorResultDto>.Failure(
+                ComedorErrorCodes.ErrorInterno,
+                "No se pudo registrar el comedor.");
+        }
+
+        logger.LogInformation(
+            "Comedor creado. Comedor={ComedorId}, Nombre={Nombre}, Distrito={Distrito}",
+            entidad.Id,
+            entidad.Nombre,
+            entidad.Distrito);
+
+        return Result<ComedorResultDto>.Success(new ComedorResultDto
+        {
+            Id = entidad.Id,
+            Nombre = entidad.Nombre,
+            Distrito = entidad.Distrito,
+            Direccion = entidad.Direccion,
+            ContactoTelefono = entidad.ContactoTelefono,
+            RacionesDiarias = entidad.RacionesDiarias,
+            MapaX = entidad.MapaX,
+            MapaY = entidad.MapaY
+        });
+    }
 
     public async Task<Result<IReadOnlyList<ComedorResumenDto>>> ObtenerResumenAsync(
         CancellationToken cancellationToken = default)
@@ -183,9 +266,12 @@ public sealed class ComedorService(IAppDbContext dbContext) : IComedorService
 
     public async Task<Result<IReadOnlyList<KardexFilaDto>>> ObtenerKardexAsync(
         Guid comedorId,
+        UsuarioOperacion usuario,
         int limite = 20,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(usuario);
+
         if (comedorId == Guid.Empty)
         {
             return Result<IReadOnlyList<KardexFilaDto>>.Failure(
@@ -198,6 +284,15 @@ public sealed class ComedorService(IAppDbContext dbContext) : IComedorService
             return Result<IReadOnlyList<KardexFilaDto>>.Failure(
                 ComedorErrorCodes.Validacion,
                 "El limite debe estar entre 1 y 200.");
+        }
+
+        // El kardex del comedor es informacion de inventario: no se puede leer el de un
+        // comedor ajeno aunque se conozca su id. Se comprueba antes de tocar los datos.
+        if (!usuario.PuedeOperar(comedorId))
+        {
+            return Result<IReadOnlyList<KardexFilaDto>>.Failure(
+                ComedorErrorCodes.SinPermiso,
+                "No tienes permisos para consultar el kardex de este comedor.");
         }
 
         // Un solo JOIN con subconsulta correlacionada. La alternativa (sacar los ids de los
@@ -267,6 +362,9 @@ public sealed class ComedorService(IAppDbContext dbContext) : IComedorService
 
         return Result<IReadOnlyList<KardexFilaDto>>.Success(kardex);
     }
+
+    private static string FormatearErrores(ValidationResult validacion) =>
+        string.Join(" ", validacion.Errors.Select(error => error.ErrorMessage));
 
     /// <summary>
     /// Porcentaje de abastecimiento ponderado por tope: el total guardado sobre el total

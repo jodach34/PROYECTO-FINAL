@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Rescauta.Application.Common;
+using Rescauta.Application.Features.Kardex;
 
 namespace Rescauta.Api.Controllers;
 
@@ -42,6 +44,30 @@ public abstract class ApiControllerBase : ControllerBase
         => result.IsSuccess
             ? NoContent()
             : ProblemFrom(result.ErrorCode, result.ErrorMessage);
+
+    /// <summary>
+    /// Identidad de operacion a partir de los claims de la sesion. La usan los endpoints
+    /// de Kardex para resolver que comedores puede consultar u operar el usuario.
+    /// </summary>
+    protected UsuarioOperacion? UsuarioActual()
+    {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var usuarioId))
+        {
+            return null;
+        }
+
+        var comedores = User
+            .FindAll("comedor_id")
+            .Select(claim => Guid.TryParse(claim.Value, out var comedorId) ? comedorId : Guid.Empty)
+            .Where(comedorId => comedorId != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        return new UsuarioOperacion(
+            usuarioId,
+            User.FindFirstValue(ClaimTypes.Role) ?? string.Empty,
+            comedores);
+    }
 
     private ObjectResult ProblemFrom(string? errorCode, string? errorMessage)
     {

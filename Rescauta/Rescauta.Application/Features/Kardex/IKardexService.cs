@@ -35,21 +35,35 @@ public interface IKardexService
     /// </summary>
     Task<Result<MovimientoKardexResultDto>> RegistrarMovimientoAsync(
         MovimientoKardexDto movimiento,
+        UsuarioOperacion usuario,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<InsumoResultDto>> CrearInsumoAsync(
+        CrearInsumoDto insumo,
+        UsuarioOperacion usuario,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Devuelve el kardex de un insumo, del movimiento mas reciente al mas antiguo.
     /// Paginado porque un insumo con anios de historial no entra en un solo response.
+    ///
+    /// Solo el Administrador puede leer cualquier comedor. Operador y Coordinador solo
+    /// leen insumos de los comedores que tienen asignados; si el insumo es de otro comedor
+    /// se devuelve <see cref="KardexErrorCodes.SinPermiso"/> sin exponer sus datos.
     /// </summary>
     Task<Result<IReadOnlyList<MovimientoKardexResultDto>>> ObtenerKardexAsync(
         Guid insumoId,
+        UsuarioOperacion usuario,
         int pagina = 1,
         int tamanoPagina = 50,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Stock actual de un insumo.</summary>
+    /// <summary>
+    /// Stock actual de un insumo. Mismas reglas de acceso que <see cref="ObtenerKardexAsync"/>.
+    /// </summary>
     Task<Result<decimal>> ObtenerStockAsync(
         Guid insumoId,
+        UsuarioOperacion usuario,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -72,6 +86,12 @@ public static class KardexErrorCodes
 
     /// <summary>La salida pedida supera el stock disponible.</summary>
     public const string StockInsuficiente = "kardex.stock_insuficiente";
+
+    /// <summary>El usuario no tiene asignado el comedor sobre el que intenta operar.</summary>
+    public const string SinPermiso = "kardex.sin_permiso";
+
+    /// <summary>El comedor del insumo no existe o esta dado de baja.</summary>
+    public const string ComedorNoEncontrado = "kardex.comedor_no_encontrado";
 
     /// <summary>La peticion no paso las validaciones de forma (FluentValidation).</summary>
     public const string Validacion = "kardex.validacion";

@@ -9,19 +9,42 @@ using Rescauta.Application.Features.Comedores.Dto;
 namespace Rescauta.Api.Controllers.v1;
 
 /// <summary>
-/// Endpoints de lectura del mapa de comedores. Son los que consume la pantalla de Mapa.
+/// Endpoints del mapa de comedores. Son los que consume la pantalla de Mapa.
 ///
-///   GET /api/v1/comedores                lista con estado de abastecimiento
-///   GET /api/v1/comedores/{id}           ficha con el inventario del comedor
-///   GET /api/v1/comedores/{id}/kardex    movimientos recientes, para el Panel
+///   GET  /api/v1/comedores                lista con estado de abastecimiento
+///   GET  /api/v1/comedores/{id}           ficha con el inventario del comedor
+///   GET  /api/v1/comedores/{id}/kardex    movimientos recientes, para el Panel
+///   POST /api/v1/comedores                alta de un comedor (solo Administrador)
 ///
-/// No hay verbos POST aqui: el modulo Comedores no escribe. Lo que cambia el inventario es
-/// KardexController, y por eso el boton "Registrar Consumo Diario" del Panel va ahi.
+/// Lo que cambia el inventario es KardexController, y por eso el boton "Registrar Consumo
+/// Diario" del Panel va ahi.
 /// </summary>
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
 public sealed class ComedoresController(IComedorService comedorService) : ApiControllerBase
 {
+    /// <summary>Registra un comedor nuevo. Solo el Administrador puede darlo de alta.</summary>
+    [HttpPost]
+    [Authorize(Policy = AuthPolicies.Admin)]
+    [ProducesResponseType<ComedorResultDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ComedorResultDto>> Crear(
+        [FromBody] CrearComedorDto comedor,
+        CancellationToken cancellationToken)
+    {
+        var result = await comedorService.CrearAsync(comedor, cancellationToken);
+
+        if (result.IsFailure)
+        {
+            return FromResult(result);
+        }
+
+        Response.Headers.Location = $"/api/v1/comedores/{result.Value.Id}";
+
+        return StatusCode(StatusCodes.Status201Created, result.Value);
+    }
+
     /// <summary>
     /// Comedores con su porcentaje de abastecimiento, del mas urgente al menos urgente.
     /// Es lo que pintan los pines del mapa y las tarjetas del sidebar.
@@ -66,23 +89,48 @@ public sealed class ComedoresController(IComedorService comedorService) : ApiCon
         [FromQuery] int limite = 20,
         CancellationToken cancellationToken = default)
     {
-        var result = await comedorService.ObtenerKardexAsync(comedorId, limite, cancellationToken);
+        var usuario = UsuarioActual();
 
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : NotFound(ConstruirProblem(result.ErrorCode, result.ErrorMessage));
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await comedorService.ObtenerKardexAsync(
+            comedorId,
+            usuario,
+            limite,
+            cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            return Ok(result.Value);
+        }
+
+        if (result.ErrorCode == ComedorErrorCodes.SinPermiso)
+        {
+            return ConstruirProblem(
+                result.ErrorCode,
+                result.ErrorMessage,
+                StatusCodes.Status403Forbidden);
+        }
+
+        return ConstruirProblem(result.ErrorCode, result.ErrorMessage);
     }
 
     /// <summary>
-    /// 404 con el mismo cuerpo ProblemDetails que usa la base para los 400, para que el
-    /// cliente lea el motivo igual en los dos casos. La base no lo ofrece porque su
-    /// ProblemFrom siempre devuelve 400.
+    /// Cuerpo ProblemDetails coherente con el de la base. El estado se elige segun el
+    /// motivo: 403 cuando el comedor existe pero no esta asignado al usuario, 404 cuando
+    /// el recurso no existe.
     /// </summary>
-    private ObjectResult ConstruirProblem(string? errorCode, string? errorMessage)
+    private ObjectResult ConstruirProblem(
+        string? errorCode,
+        string? errorMessage,
+        int statusCode = StatusCodes.Status404NotFound)
     {
         var problem = new ProblemDetails
         {
-            Status = StatusCodes.Status404NotFound,
+            Status = statusCode,
             Title = errorCode ?? "No encontrado",
             Detail = errorMessage,
             Instance = HttpContext.Request.Path
@@ -90,6 +138,6 @@ public sealed class ComedoresController(IComedorService comedorService) : ApiCon
 
         problem.Extensions["traceId"] = HttpContext.TraceIdentifier;
 
-        return NotFound(problem);
+        return StatusCode(statusCode, problem);
     }
 }

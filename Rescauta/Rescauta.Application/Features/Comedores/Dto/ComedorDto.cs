@@ -9,6 +9,9 @@ public static class ComedorErrorCodes
     public const string ComedorNoEncontrado = "comedor.no_encontrado";
     public const string Validacion = "comedor.validacion";
     public const string ErrorInterno = "comedor.error_interno";
+
+    /// <summary>El usuario no tiene asignado el comedor cuyo kardex intenta consultar.</summary>
+    public const string SinPermiso = "comedor.sin_permiso";
 }
 
 /// <summary>
@@ -53,6 +56,46 @@ public static class EstadoComedor
         Abastecido => 2,
         _ => 3
     };
+}
+
+/// <summary>Datos para registrar un nuevo comedor en la red.</summary>
+public sealed record CrearComedorDto
+{
+    public string Nombre { get; init; } = string.Empty;
+
+    public string Distrito { get; init; } = string.Empty;
+
+    public int RacionesDiarias { get; init; }
+
+    public string Direccion { get; init; } = string.Empty;
+
+    public string ContactoTelefono { get; init; } = string.Empty;
+
+    /// <summary>Posicion horizontal del pin en el mapa, en porcentaje (0-100).</summary>
+    public decimal MapaX { get; init; }
+
+    /// <summary>Posicion vertical del pin en el mapa, en porcentaje (0-100).</summary>
+    public decimal MapaY { get; init; }
+}
+
+/// <summary>Comedor recien registrado, con los datos persistidos.</summary>
+public sealed record ComedorResultDto
+{
+    public Guid Id { get; init; }
+
+    public string Nombre { get; init; } = string.Empty;
+
+    public string Distrito { get; init; } = string.Empty;
+
+    public string Direccion { get; init; } = string.Empty;
+
+    public string ContactoTelefono { get; init; } = string.Empty;
+
+    public int RacionesDiarias { get; init; }
+
+    public decimal MapaX { get; init; }
+
+    public decimal MapaY { get; init; }
 }
 
 /// <summary>

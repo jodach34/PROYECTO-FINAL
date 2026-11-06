@@ -13,6 +13,7 @@
     };
 
     var pasoActual = Array.FindIndex(pasos, p => string.Equals(p.Clave, estado, StringComparison.OrdinalIgnoreCase));
+    var esCerrada = estado is "Cancelada" or "Anulada";
     var claseEstado = estado switch
     {
         "Entregada" => "rs-badge rs-badge--ok",
@@ -26,7 +27,8 @@
         "EnTransito" => "En camino",
         "Entregada" => "Entregada",
         "Confirmada" => "Confirmada",
-        "Cancelada" or "Anulada" => "Cancelada",
+        "Cancelada" => "Cancelada",
+        "Anulada" => "Anulada",
         _ when string.IsNullOrWhiteSpace(estado) => "Sin estado",
         _ => estado
     };
@@ -110,34 +112,57 @@
                                 <dd class="mt-1 font-extrabold">@donacion.Cantidad @donacion.UnidadMedida</dd>
                             </div>
                             <div class="col-span-2 rounded-xl border border-[#dce7df] bg-[#fbfdfb] p-3.5">
-                                <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Stock del insumo después de la donación</dt>
+                                <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Stock actual del insumo</dt>
                                 <dd class="mt-1 font-extrabold">
                                     @donacion.StockResultante.ToString("0.##") @donacion.UnidadMedida
                                     <span class="text-[0.68rem] font-semibold text-[#5f6f66]">en la despensa del comedor</span>
                                 </dd>
+                                <p class="mt-1 text-[0.64rem] font-semibold text-[#5f6f66]">La donación suma stock cuando la coordinación confirma la recepción.</p>
                             </div>
                         </dl>
+
+                        @if (!string.IsNullOrWhiteSpace(donacion.MotivoCierre))
+                        {
+                            <div class="rs-alert rs-alert--warn mt-3" role="note">
+                                <span>
+                                    <strong>Motivo de cierre.</strong> @donacion.MotivoCierre
+                                    @if (donacion.FechaCierre is not null)
+                                    {
+                                        <span class="block text-[0.68rem] font-semibold">@donacion.FechaCierre.Value.ToLocalTime().ToString("dd/MM/yyyy 'a las' HH:mm")</span>
+                                    }
+                                </span>
+                            </div>
+                        }
                     </div>
 
                     <div>
                         <h2 class="font-display text-base font-extrabold tracking-[-0.02em]">Estado del proceso</h2>
                         <p class="mt-1 text-[0.72rem] text-[#5f6f66]">Así avanza tu donación hasta llegar al comedor.</p>
 
-                        <ol class="rs-timeline mt-5">
-                            @for (var i = 0; i < pasos.Length; i++)
-                            {
-                                var paso = pasos[i];
-                                var completado = pasoActual >= i;
-                                var esActual = pasoActual == i;
-                                <li class="rs-timeline__item @(completado ? "is-done" : null) @(esActual ? "is-current" : null)">
-                                    <span class="rs-timeline__marker">@(i + 1)</span>
-                                    <div>
-                                        <p class="rs-timeline__title @(esActual ? "text-[#1b6b4a]" : null)">@paso.Etiqueta</p>
-                                        <p class="rs-timeline__detail">@paso.Detalle</p>
-                                    </div>
-                                </li>
-                            }
-                        </ol>
+                        @if (esCerrada)
+                        {
+                            <div class="rs-alert rs-alert--warn mt-5" role="note">
+                                <span>Esta donación fue @etiquetaEstado.ToLowerInvariant() y no continuó su recorrido hacia el comedor.</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <ol class="rs-timeline mt-5">
+                                @for (var i = 0; i < pasos.Length; i++)
+                                {
+                                    var paso = pasos[i];
+                                    var completado = pasoActual >= i;
+                                    var esActual = pasoActual == i;
+                                    <li class="rs-timeline__item @(completado ? "is-done" : null) @(esActual ? "is-current" : null)">
+                                        <span class="rs-timeline__marker">@(i + 1)</span>
+                                        <div>
+                                            <p class="rs-timeline__title @(esActual ? "text-[#1b6b4a]" : null)">@paso.Etiqueta</p>
+                                            <p class="rs-timeline__detail">@paso.Detalle</p>
+                                        </div>
+                                    </li>
+                                }
+                            </ol>
+                        }
                     </div>
                 </div>
 

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rescauta.Api.Controllers;
 using Rescauta.Api.Security;
+using Rescauta.Application.Common;
 using Rescauta.Application.Features.Kardex;
 using Rescauta.Application.Features.Kardex.Dto;
 using Rescauta.Domain.Entities.Kardex;
@@ -41,9 +42,44 @@ public sealed class KardexController(IKardexService kardexService) : ApiControll
         [FromBody] MovimientoKardexDto movimiento,
         CancellationToken cancellationToken)
     {
-        var result = await kardexService.RegistrarMovimientoAsync(movimiento, cancellationToken);
+        var usuario = UsuarioActual();
 
-        return FromResult(result);
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await kardexService.RegistrarMovimientoAsync(
+            movimiento,
+            usuario,
+            cancellationToken);
+
+        return FromKardexResult(result);
+    }
+
+    [HttpPost("insumos")]
+    [ProducesResponseType<InsumoResultDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType<InsumoResultDto>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<InsumoResultDto>> CrearInsumo(
+        [FromBody] CrearInsumoDto insumo,
+        CancellationToken cancellationToken)
+    {
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await kardexService.CrearInsumoAsync(insumo, usuario, cancellationToken);
+
+        if (result.IsFailure)
+        {
+            return FromKardexResult(result);
+        }
+
+        return StatusCode(StatusCodes.Status201Created, result.Value);
     }
 
     /// <summary>
@@ -96,6 +132,13 @@ public sealed class KardexController(IKardexService kardexService) : ApiControll
             .ThenBy(x => x.TipoMovimiento)
             .ToList();
 
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
         var exitosos = new List<MovimientoKardexResultDto>(ordenados.Count);
         var fallidos = new List<MovimientoKardexErrorDto>(ordenados.Count);
 
@@ -105,7 +148,10 @@ public sealed class KardexController(IKardexService kardexService) : ApiControll
         // cada movimiento abre su propia transaccion.
         foreach (var movimiento in ordenados)
         {
-            var result = await kardexService.RegistrarMovimientoAsync(movimiento, cancellationToken);
+            var result = await kardexService.RegistrarMovimientoAsync(
+                movimiento,
+                usuario,
+                cancellationToken);
 
             if (result.IsSuccess)
             {
@@ -150,20 +196,101 @@ public sealed class KardexController(IKardexService kardexService) : ApiControll
         Guid insumoId,
         CancellationToken cancellationToken)
     {
-        var result = await kardexService.ObtenerStockAsync(insumoId, cancellationToken);
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await kardexService.ObtenerStockAsync(
+            insumoId,
+            usuario,
+            cancellationToken);
 
         if (result.IsFailure)
         {
-            return NotFound(new ProblemDetails
-            {
-                Status = StatusCodes.Status404NotFound,
-                Title = result.ErrorCode ?? "No encontrado",
-                Detail = result.ErrorMessage,
-                Instance = HttpContext.Request.Path
-            });
+            return FromKardexReadResult(result);
         }
 
         return Ok(new { insumoId, stockActual = result.Value });
+    }
+
+    [HttpGet("insumos/{insumoId:guid}/movimientos")]
+    [ProducesResponseType<IReadOnlyList<MovimientoKardexResultDto>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ObtenerKardexInsumo(
+        Guid insumoId,
+        [FromQuery] int pagina = 1,
+        [FromQuery] int tamanoPagina = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        var result = await kardexService.ObtenerKardexAsync(
+            insumoId,
+            usuario,
+            pagina,
+            tamanoPagina,
+            cancellationToken);
+
+        return FromKardexReadResult(result);
+    }
+
+    private ActionResult<T> FromKardexResult<T>(Result<T> result)
+    {
+        if (result.IsSuccess)
+        {
+            return Ok(result.Value);
+        }
+
+        if (result.ErrorCode == KardexErrorCodes.SinPermiso)
+        {
+            return ProblemResult(StatusCodes.Status403Forbidden, result);
+        }
+
+        return FromResult(result);
+    }
+
+    /// <summary>
+    /// Traduce una lectura de Kardex. A diferencia de las escrituras, un insumo inexistente
+    /// es 404 y un comedor ajeno es 403: el cliente necesita distinguir "no existe" de "no
+    /// tienes permiso", pero el 403 no incluye ningun dato del insumo.
+    /// </summary>
+    private IActionResult FromKardexReadResult<T>(Result<T> result)
+    {
+        if (result.IsSuccess)
+        {
+            return Ok(result.Value);
+        }
+
+        return result.ErrorCode switch
+        {
+            KardexErrorCodes.SinPermiso =>
+                ProblemResult(StatusCodes.Status403Forbidden, result),
+            KardexErrorCodes.InsumoNoEncontrado =>
+                ProblemResult(StatusCodes.Status404NotFound, result),
+            _ => ProblemResult(StatusCodes.Status400BadRequest, result)
+        };
+    }
+
+    private ObjectResult ProblemResult<T>(int statusCode, Result<T> result)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = statusCode,
+            Title = result.ErrorCode,
+            Detail = result.ErrorMessage,
+            Instance = HttpContext.Request.Path
+        };
+
+        problem.Extensions["traceId"] = HttpContext.TraceIdentifier;
+
+        return StatusCode(statusCode, problem);
     }
 }
 

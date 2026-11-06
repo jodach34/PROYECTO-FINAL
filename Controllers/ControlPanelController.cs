@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PROYECTO_FINAL.Models;
+using PROYECTO_FINAL.Models.Api;
 using PROYECTO_FINAL.Services;
 
 namespace PROYECTO_FINAL.Controllers;
@@ -24,27 +26,38 @@ public class ControlPanelController(RescautaApiClient api) : Controller
 
     public async Task<IActionResult> Index(Guid? comedorId, CancellationToken cancellationToken)
     {
-        var comedores = await api.ObtenerComedoresAsync(cancellationToken);
+        var resumen = await api.ObtenerComedoresAsync(cancellationToken);
 
-        if (!comedores.Exito)
+        if (!resumen.Exito)
         {
-            return View(new PanelViewModel { Error = comedores.Mensaje });
+            return View(new PanelViewModel { Error = resumen.Mensaje });
+        }
+
+        // El panel es operativo: Operador y Coordinador solo deben ver los comedores que
+        // tienen asignados. El Administrador conserva la vision global de la red.
+        var comedores = FiltrarComedores(resumen.Valor!);
+
+        if (comedores.Count == 0)
+        {
+            return View(new PanelViewModel
+            {
+                Comedores = comedores,
+                Error = "No tienes comedores asignados para operar el panel."
+            });
         }
 
         // Sin comedor elegido se toma el primero de la lista. La API ya los devuelve
         // ordenados por urgencia, asi que el panel abre con lo mas urgente a la vista y no
         // con el primero alfabeticamente.
+        string? error = null;
         var elegido = comedorId is { } id
-            ? comedores.Valor!.FirstOrDefault(c => c.Id == id)
-            : comedores.Valor!.FirstOrDefault();
+            ? comedores.FirstOrDefault(c => c.Id == id)
+            : comedores[0];
 
         if (elegido is null)
         {
-            return View(new PanelViewModel
-            {
-                Comedores = comedores.Valor!,
-                ComedorNoEncontrado = comedorId is not null
-            });
+            error = "No tienes permisos para consultar el comedor solicitado.";
+            elegido = comedores[0];
         }
 
         // El detalle y el kardex van en paralelo: son dos llamadas independientes y una
@@ -61,13 +74,30 @@ public class ControlPanelController(RescautaApiClient api) : Controller
 
         return View(new PanelViewModel
         {
-            Comedores = comedores.Valor!,
+            Comedores = comedores,
             Comedor = detalle.Exito ? detalle.Valor : null,
             Kardex = kardex.Exito ? kardex.Valor! : [],
             ComedorNoEncontrado = !detalle.Exito,
-            Error = detalle.Exito
-                ? kardex.Exito ? null : kardex.Mensaje
-                : detalle.Mensaje
+            Error = error
+                ?? (detalle.Exito
+                    ? kardex.Exito ? null : kardex.Mensaje
+                    : detalle.Mensaje)
         });
+    }
+
+    private IReadOnlyList<ComedorResumen> FiltrarComedores(IReadOnlyList<ComedorResumen> comedores)
+    {
+        if (User.IsInRole("Administrador"))
+        {
+            return comedores;
+        }
+
+        var asignados = User
+            .FindAll("comedor_id")
+            .Select(claim => Guid.TryParse(claim.Value, out var comedorId) ? comedorId : Guid.Empty)
+            .Where(comedorId => comedorId != Guid.Empty)
+            .ToHashSet();
+
+        return comedores.Where(c => asignados.Contains(c.Id)).ToList();
     }
 }

@@ -1,3 +1,5 @@
+using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Rescauta.Application.Common;
@@ -5,6 +7,7 @@ using Rescauta.Application.Features.Kardex.Dto;
 using Rescauta.Application.Interfaces;
 using Rescauta.Application.Interfaces.Caching;
 using Rescauta.Application.Interfaces.RealTime;
+using Rescauta.Domain.Entities.Comedores;
 using Rescauta.Domain.Entities.Kardex;
 using Rescauta.Domain.Exceptions;
 
@@ -32,6 +35,8 @@ public sealed class KardexService(
     IAppDbContext dbContext,
     IInventoryNotifier notifier,
     ICacheService cacheService,
+    IValidator<MovimientoKardexDto> movimientoValidator,
+    IValidator<CrearInsumoDto> insumoValidator,
     ILogger<KardexService> logger) : IKardexService
 {
     /// <summary>Prefijo de cache del modulo. Regla 3 de Features/Kardex/README.md.</summary>
@@ -46,9 +51,19 @@ public sealed class KardexService(
 
     public async Task<Result<MovimientoKardexResultDto>> RegistrarMovimientoAsync(
         MovimientoKardexDto movimiento,
+        UsuarioOperacion usuario,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(movimiento);
+        ArgumentNullException.ThrowIfNull(usuario);
+
+        var validacion = await movimientoValidator.ValidateAsync(movimiento, cancellationToken);
+        if (!validacion.IsValid)
+        {
+            return Result<MovimientoKardexResultDto>.Failure(
+                KardexErrorCodes.Validacion,
+                FormatearErrores(validacion));
+        }
 
         // 1. Cargar el agregado. AsNoTracking NO se usa: el agregado tiene que quedar
         //    tracked para que EF vea los cambios de StockActual y detecte el movimiento
@@ -62,6 +77,24 @@ public sealed class KardexService(
             return Result<MovimientoKardexResultDto>.Failure(
                 KardexErrorCodes.InsumoNoEncontrado,
                 $"No existe un insumo con id {movimiento.InsumoId}.");
+        }
+
+        if (!usuario.PuedeOperar(insumo.ComedorId))
+        {
+            return Result<MovimientoKardexResultDto>.Failure(
+                KardexErrorCodes.SinPermiso,
+                "No tienes permisos para operar sobre el comedor de este insumo.");
+        }
+
+        var comedorExiste = await dbContext
+            .Set<Comedor>()
+            .AnyAsync(c => c.Id == insumo.ComedorId, cancellationToken);
+
+        if (!comedorExiste)
+        {
+            return Result<MovimientoKardexResultDto>.Failure(
+                KardexErrorCodes.ComedorNoEncontrado,
+                "El comedor del insumo no existe o esta dado de baja.");
         }
 
         // 2. Saldo antes de tocar nada. Se usa para el payload de tiempo real (el cliente
@@ -108,7 +141,7 @@ public sealed class KardexService(
                 movimiento.Cantidad,
                 ex.Message);
 
-            var codigo = EsStockInsuficiente(ex, movimiento, stockPrevio)
+            var codigo = EsStockInsuficiente(movimiento, stockPrevio)
                 ? KardexErrorCodes.StockInsuficiente
                 : KardexErrorCodes.Validacion;
 
@@ -216,12 +249,116 @@ public sealed class KardexService(
         return Result<MovimientoKardexResultDto>.Success(resultado);
     }
 
+    public async Task<Result<InsumoResultDto>> CrearInsumoAsync(
+        CrearInsumoDto insumo,
+        UsuarioOperacion usuario,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(insumo);
+        ArgumentNullException.ThrowIfNull(usuario);
+
+        var validacion = await insumoValidator.ValidateAsync(insumo, cancellationToken);
+        if (!validacion.IsValid)
+        {
+            return Result<InsumoResultDto>.Failure(
+                KardexErrorCodes.Validacion,
+                FormatearErrores(validacion));
+        }
+
+        if (!usuario.PuedeOperar(insumo.ComedorId))
+        {
+            return Result<InsumoResultDto>.Failure(
+                KardexErrorCodes.SinPermiso,
+                "No tienes permisos para operar sobre este comedor.");
+        }
+
+        var comedor = await dbContext
+            .Set<Comedor>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == insumo.ComedorId, cancellationToken);
+
+        if (comedor is null)
+        {
+            return Result<InsumoResultDto>.Failure(
+                KardexErrorCodes.ComedorNoEncontrado,
+                $"No existe un comedor con id {insumo.ComedorId}.");
+        }
+
+        Insumo entidad;
+
+        try
+        {
+            entidad = Insumo.Crear(
+                insumo.ComedorId,
+                insumo.Nombre,
+                insumo.UnidadMedida,
+                insumo.StockInicial,
+                insumo.StockMaximo);
+        }
+        catch (DomainException ex)
+        {
+            logger.LogWarning(
+                "Alta de insumo rechazada. Comedor={ComedorId}, Nombre={Nombre}. Motivo: {Motivo}",
+                insumo.ComedorId,
+                insumo.Nombre,
+                ex.Message);
+
+            return Result<InsumoResultDto>.Failure(KardexErrorCodes.Validacion, ex.Message);
+        }
+
+        dbContext.Set<Insumo>().Add(entidad);
+
+        foreach (var movimiento in entidad.Movimientos)
+        {
+            dbContext.Set<MovimientoKardex>().Add(movimiento);
+        }
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo guardar el insumo {Nombre} del comedor {ComedorId}.",
+                insumo.Nombre,
+                insumo.ComedorId);
+
+            return Result<InsumoResultDto>.Failure(
+                KardexErrorCodes.ErrorInterno,
+                "No se pudo registrar el insumo.");
+        }
+
+        await InvalidarCacheAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Insumo creado. Insumo={InsumoId}, Comedor={ComedorId}, Nombre={Nombre}, StockInicial={StockInicial}",
+            entidad.Id,
+            entidad.ComedorId,
+            entidad.Nombre,
+            entidad.StockActual);
+
+        return Result<InsumoResultDto>.Success(new InsumoResultDto
+        {
+            InsumoId = entidad.Id,
+            ComedorId = entidad.ComedorId,
+            Nombre = entidad.Nombre,
+            UnidadMedida = entidad.UnidadMedida,
+            StockActual = entidad.StockActual,
+            StockMaximo = entidad.StockMaximo
+        });
+    }
+
     public async Task<Result<IReadOnlyList<MovimientoKardexResultDto>>> ObtenerKardexAsync(
         Guid insumoId,
+        UsuarioOperacion usuario,
         int pagina = 1,
         int tamanoPagina = 50,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(usuario);
+
         if (pagina < 1)
         {
             return Result<IReadOnlyList<MovimientoKardexResultDto>>.Failure(
@@ -236,11 +373,64 @@ public sealed class KardexService(
                 "El tamano de pagina debe estar entre 1 y 200.");
         }
 
+        // El insumo se resuelve antes de leer el historial porque es lo que dice a que
+        // comedor pertenece. Sin esta comprobacion cualquier usuario con rol de operacion
+        // podia leer el kardex de un comedor ajeno con solo conocer el id del insumo.
+        var insumo = await dbContext
+            .Set<Insumo>()
+            .AsNoTracking()
+            .Where(x => x.Id == insumoId)
+            .Select(x => new { x.ComedorId, x.UnidadMedida })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (insumo is null)
+        {
+            return Result<IReadOnlyList<MovimientoKardexResultDto>>.Failure(
+                KardexErrorCodes.InsumoNoEncontrado,
+                $"No existe un insumo con id {insumoId}.");
+        }
+
+        if (!usuario.PuedeOperar(insumo.ComedorId))
+        {
+            return Result<IReadOnlyList<MovimientoKardexResultDto>>.Failure(
+                KardexErrorCodes.SinPermiso,
+                "No tienes permisos para consultar el kardex de este comedor.");
+        }
+
         // AsNoTracking aqui si: es solo lectura y el historial puede ser largo.
-        var movimientos = await dbContext
+        var filas = await dbContext
             .Set<MovimientoKardex>()
             .AsNoTracking()
             .Where(x => x.InsumoId == insumoId)
+            .Select(x => new
+            {
+                x.Id,
+                x.InsumoId,
+                x.FechaHora,
+                x.CreatedAt,
+                x.TipoMovimiento,
+                x.Cantidad
+            })
+            .ToListAsync(cancellationToken);
+
+        // El saldo de cada asiento es acumulado, no el saldo final repetido. Se recorre
+        // en orden cronologico (el mismo criterio con el que el agregado los aplica) para
+        // que cada fila muestre el stock que quedo despues de ese movimiento.
+        var saldos = new Dictionary<Guid, decimal>(filas.Count);
+        var saldo = 0m;
+
+        foreach (var fila in filas
+            .OrderBy(x => x.FechaHora)
+            .ThenBy(x => x.CreatedAt))
+        {
+            saldo += fila.TipoMovimiento == TipoMovimiento.Entrada
+                ? fila.Cantidad
+                : -fila.Cantidad;
+
+            saldos[fila.Id] = saldo;
+        }
+
+        var movimientos = filas
             .OrderByDescending(x => x.FechaHora)
             .ThenByDescending(x => x.CreatedAt)
             .Skip((pagina - 1) * tamanoPagina)
@@ -249,36 +439,47 @@ public sealed class KardexService(
             {
                 MovimientoId = x.Id,
                 InsumoId = x.InsumoId,
-                StockActual = 0m,
-                UnidadMedida = string.Empty,
+                StockActual = saldos[x.Id],
+                UnidadMedida = insumo.UnidadMedida,
                 FechaHora = x.FechaHora,
                 TipoMovimiento = x.TipoMovimiento
             })
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         return Result<IReadOnlyList<MovimientoKardexResultDto>>.Success(movimientos);
     }
 
     public async Task<Result<decimal>> ObtenerStockAsync(
         Guid insumoId,
+        UsuarioOperacion usuario,
         CancellationToken cancellationToken = default)
     {
-        // Proyeccion a decimal directo: se pide solo la columna, no la entidad entera.
-        var stock = await dbContext
+        ArgumentNullException.ThrowIfNull(usuario);
+
+        // Proyeccion a las columnas necesarias: para autorizar hace falta el comedor y
+        // para responder el saldo. No se carga la entidad completa.
+        var insumo = await dbContext
             .Set<Insumo>()
             .AsNoTracking()
             .Where(x => x.Id == insumoId)
-            .Select(x => (decimal?)x.StockActual)
+            .Select(x => new { x.ComedorId, x.StockActual })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (stock is null)
+        if (insumo is null)
         {
             return Result<decimal>.Failure(
                 KardexErrorCodes.InsumoNoEncontrado,
                 $"No existe un insumo con id {insumoId}.");
         }
 
-        return Result<decimal>.Success(stock.Value);
+        if (!usuario.PuedeOperar(insumo.ComedorId))
+        {
+            return Result<decimal>.Failure(
+                KardexErrorCodes.SinPermiso,
+                "No tienes permisos para consultar el stock de este comedor.");
+        }
+
+        return Result<decimal>.Success(insumo.StockActual);
     }
 
     public async Task<Result> EnviarAlertaEmergenciaAsync(
@@ -311,19 +512,20 @@ public sealed class KardexService(
         return Result.Success();
     }
 
+    private static string FormatearErrores(ValidationResult validacion) =>
+        string.Join(" ", validacion.Errors.Select(error => error.ErrorMessage));
+
     /// <summary>
     /// Traduce la excepcion del dominio al codigo de error de stock insuficiente. Se
     /// distingue por el tipo de movimiento y no por comparar el texto del mensaje: si el
     /// texto cambia, el codigo de error no.
     /// </summary>
     private static bool EsStockInsuficiente(
-        DomainException ex,
         MovimientoKardexDto movimiento,
         decimal stockPrevio)
     {
         return movimiento.TipoMovimiento == TipoMovimiento.Salida &&
-               movimiento.Cantidad > stockPrevio &&
-               ex.Errors.Count == 0;
+               movimiento.Cantidad > stockPrevio;
     }
 
     private async Task InvalidarCacheAsync(CancellationToken cancellationToken)

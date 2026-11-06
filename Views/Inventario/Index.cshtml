@@ -1,0 +1,302 @@
+@model InventarioViewModel
+@{
+    Layout = "_AppLayout";
+    ViewData["Title"] = "Inventario y consumo";
+    ViewData["AppSection"] = "Inventario";
+    ViewData["AppTitle"] = "Insumos y consumo diario";
+
+    var inventario = Model.Comedor?.Inventario ?? [];
+    var comedorSeleccionado = Model.Comedor?.Id ?? Model.Insumo.ComedorId;
+}
+
+<div class="rs-page-head">
+    <div>
+        <p class="rs-eyebrow">Operacion diaria</p>
+        <h1 class="rs-page-title">Controla el stock y registra el consumo.</h1>
+        <p class="rs-page-subtitle">
+            @if (Model.Comedor is not null)
+            {
+                <span>@Model.Comedor.Nombre - @Model.Comedor.Distrito</span>
+                <span> - @inventario.Count insumos en despensa</span>
+            }
+            else
+            {
+                <span>Selecciona un comedor para operar su inventario.</span>
+            }
+        </p>
+    </div>
+
+    <div class="flex flex-wrap items-end gap-2">
+        @if (Model.Comedores.Count > 0)
+        {
+            <form method="get" asp-controller="Inventario" asp-action="Index" class="min-w-[13rem]">
+                <label for="comedorId" class="rs-label">Comedor</label>
+                <select id="comedorId" name="comedorId" class="rs-select" onchange="this.form.submit()">
+                    @foreach (var comedor in Model.Comedores)
+                    {
+                        var seleccionado = comedorSeleccionado == comedor.Id;
+                        <option value="@comedor.Id" selected="@seleccionado">@comedor.Nombre</option>
+                    }
+                </select>
+                <noscript><button type="submit" class="rs-btn rs-btn--secondary rs-btn--sm mt-2 w-full">Ver comedor</button></noscript>
+            </form>
+        }
+        <a class="rs-btn rs-btn--secondary" asp-controller="ControlPanel" asp-action="Index">Volver al panel</a>
+    </div>
+</div>
+
+@if (Model.Exito is not null)
+{
+    <div class="rs-alert rs-alert--ok mb-4" role="status">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+            <path d="m5 12 4 4L19 6" />
+        </svg>
+        <span><strong>Operacion completada.</strong> @Model.Exito</span>
+    </div>
+}
+
+@if (Model.Error is not null)
+{
+    <div class="rs-alert rs-alert--error mb-4" role="alert">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+            <path d="M10.3 4.7 2.9 18a1.7 1.7 0 0 0 1.5 2.5h15.2a1.7 1.7 0 0 0 1.5-2.5L13.7 4.7a1.9 1.9 0 0 0-3.4 0Z" />
+        </svg>
+        <span><strong>No se pudo completar la operacion.</strong> @Model.Error</span>
+    </div>
+}
+
+@if (Model.Comedores.Count == 0)
+{
+    <div class="rs-alert rs-alert--warn mb-4">
+        <span>No hay comedores disponibles para tu usuario. Un administrador debe asignarte un comedor.</span>
+    </div>
+}
+
+<div class="grid gap-4 items-start xl:grid-cols-2">
+    <section class="rs-panel">
+        <div class="rs-panel__head">
+            <div>
+                <h2 class="rs-panel__title">Registrar insumo</h2>
+                <p class="mt-1 text-[0.7rem] text-[#5f6f66]">El stock inicial queda asentado como una entrada en el kardex.</p>
+            </div>
+            <span class="rs-badge rs-badge--brand">Alta</span>
+        </div>
+        <div class="rs-panel__body">
+            <form method="post" asp-controller="Inventario" asp-action="CrearInsumo" class="grid gap-4">
+                <input type="hidden" name="ComedorId" value="@Model.Insumo.ComedorId" />
+
+                <div>
+                    <label class="rs-label" for="Nombre">Nombre del insumo *</label>
+                    <input class="rs-input" id="Nombre" name="Nombre" type="text" required value="@Model.Insumo.Nombre" placeholder="Ej. Arroz" maxlength="120" />
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-3">
+                    <div>
+                        <label class="rs-label" for="UnidadMedida">Unidad *</label>
+                        <input class="rs-input" id="UnidadMedida" name="UnidadMedida" type="text" required value="@Model.Insumo.UnidadMedida" placeholder="kg" maxlength="40" />
+                    </div>
+                    <div>
+                        <label class="rs-label" for="StockInicial">Stock inicial *</label>
+                        <input class="rs-input" id="StockInicial" name="StockInicial" type="number" min="0" step="0.001" required value="@Model.Insumo.StockInicial" />
+                    </div>
+                    <div>
+                        <label class="rs-label" for="StockMaximo">Stock maximo *</label>
+                        <input class="rs-input" id="StockMaximo" name="StockMaximo" type="number" min="0" step="0.001" required value="@Model.Insumo.StockMaximo" />
+                    </div>
+                </div>
+
+                <p class="rs-help">Usa una unidad consistente con el resto de la despensa (kg, litros, unidades).</p>
+
+                <button class="rs-btn rs-btn--primary rs-btn--block" type="submit" disabled="@(Model.Comedor is null)">
+                    Guardar insumo
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <section class="rs-panel">
+        <div class="rs-panel__head">
+            <div>
+                <h2 class="rs-panel__title">Registrar consumo diario</h2>
+                <p class="mt-1 text-[0.7rem] text-[#5f6f66]">La cantidad se descuenta del stock y queda como salida.</p>
+            </div>
+            <span class="rs-badge rs-badge--neutral">Salida</span>
+        </div>
+        <div class="rs-panel__body">
+            <form method="post" asp-controller="Inventario" asp-action="RegistrarConsumo" class="grid gap-4">
+                <input type="hidden" name="ComedorId" value="@Model.Consumo.ComedorId" />
+
+                <div>
+                    <label class="rs-label" for="InsumoId">Insumo *</label>
+                    <select class="rs-select" id="InsumoId" name="InsumoId" required disabled="@(inventario.Count == 0)">
+                        <option value="">Elige el insumo consumido</option>
+                        @foreach (var insumo in inventario)
+                        {
+                            var seleccionado = Model.Consumo.InsumoId == insumo.Id;
+                            <option value="@insumo.Id" selected="@seleccionado">
+                                @insumo.Nombre - @insumo.StockActual.ToString("0.###") @insumo.UnidadMedida disponibles
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="rs-label" for="Cantidad">Cantidad consumida *</label>
+                        <input class="rs-input" id="Cantidad" name="Cantidad" type="number" min="0.001" step="0.001" required value="@(Model.Consumo.Cantidad > 0 ? Model.Consumo.Cantidad : null)" placeholder="Ej. 2.5" />
+                    </div>
+                    <div>
+                        <label class="rs-label" for="Responsable">Responsable *</label>
+                        <input class="rs-input" id="Responsable" name="Responsable" type="text" required value="@Model.Consumo.Responsable" placeholder="Quien registra el consumo" maxlength="120" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="rs-label" for="Concepto">Concepto</label>
+                    <input class="rs-input" id="Concepto" name="Concepto" type="text" value="@Model.Consumo.Concepto" maxlength="200" />
+                    <p class="rs-help">Si lo dejas vacio se guarda como "Consumo diario".</p>
+                </div>
+
+                <button class="rs-btn rs-btn--primary rs-btn--block" type="submit" disabled="@(inventario.Count == 0)">
+                    Registrar consumo
+                </button>
+            </form>
+        </div>
+    </section>
+</div>
+
+<div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <article class="rs-kpi">
+        <p class="rs-kpi__label">Insumos en despensa</p>
+        <p class="rs-kpi__value">@inventario.Count</p>
+    </article>
+    <article class="rs-kpi">
+        <p class="rs-kpi__label">Stock total</p>
+        <p class="rs-kpi__value">@inventario.Sum(i => i.StockActual).ToString("0.###")</p>
+    </article>
+    <article class="rs-kpi">
+        <p class="rs-kpi__label">Asientos recientes</p>
+        <p class="rs-kpi__value">@Model.Kardex.Count</p>
+    </article>
+    <article class="rs-kpi">
+        <p class="rs-kpi__label">Abastecimiento</p>
+        <p class="rs-kpi__value">@((Model.Comedor?.PorcentajeAbastecimiento ?? 0m).ToString("0.#"))%</p>
+    </article>
+</div>
+
+<div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+    <section class="rs-panel">
+        <div class="rs-panel__head">
+            <div>
+                <h2 class="rs-panel__title">Despensa actual</h2>
+                <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Saldo por insumo del comedor seleccionado.</p>
+            </div>
+            <span class="rs-badge rs-badge--neutral">@inventario.Count insumos</span>
+        </div>
+
+        @if (inventario.Count == 0)
+        {
+            <div class="rs-empty m-4">
+                <span class="rs-empty__icon" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 7h18" />
+                        <path d="M6 7v13h12V7" />
+                        <path d="M9 7V4h6v3" />
+                    </svg>
+                </span>
+                <h3>Sin insumos registrados</h3>
+                <p>Registra el primer insumo para comenzar a controlar el consumo.</p>
+            </div>
+        }
+        else
+        {
+            <div class="rs-table-wrap m-4">
+                <table class="rs-table">
+                    <thead>
+                        <tr>
+                            <th>Insumo</th>
+                            <th>Stock</th>
+                            <th>Maximo</th>
+                            <th>Cobertura</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var insumo in inventario.OrderBy(i => i.Nombre))
+                        {
+                            var porcentaje = insumo.Porcentaje ?? 0m;
+                            <tr>
+                                <td class="font-bold text-[#13251c]">@insumo.Nombre</td>
+                                <td class="whitespace-nowrap font-extrabold">@insumo.StockActual.ToString("0.###") @insumo.UnidadMedida</td>
+                                <td class="whitespace-nowrap text-[#5f6f66]">@insumo.StockMaximo.ToString("0.###") @insumo.UnidadMedida</td>
+                                <td class="whitespace-nowrap">
+                                    <span class="rs-badge @(porcentaje >= 60m ? "rs-badge--ok" : porcentaje >= 30m ? "rs-badge--alerta" : "rs-badge--critico")">
+                                        @(insumo.Porcentaje is null ? "Sin tope" : $"{porcentaje:0.#}%")
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section class="rs-panel">
+        <div class="rs-panel__head">
+            <div>
+                <h2 class="rs-panel__title">Movimientos recientes</h2>
+                <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Ultimos asientos del kardex del comedor.</p>
+            </div>
+            <span class="rs-badge rs-badge--neutral">@Model.Kardex.Count asientos</span>
+        </div>
+
+        @if (Model.Kardex.Count == 0)
+        {
+            <div class="rs-empty m-4">
+                <span class="rs-empty__icon" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16v16H4z" />
+                        <path d="M8 8h8M8 12h8M8 16h5" />
+                    </svg>
+                </span>
+                <h3>Sin movimientos registrados</h3>
+                <p>Las entradas y salidas de este comedor apareceran aqui.</p>
+            </div>
+        }
+        else
+        {
+            <div class="rs-table-wrap m-4">
+                <table class="rs-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Insumo</th>
+                            <th>Tipo</th>
+                            <th>Cantidad</th>
+                            <th>Responsable</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var fila in Model.Kardex)
+                        {
+                            var esEntrada = string.Equals(fila.TipoMovimiento, "Entrada", StringComparison.OrdinalIgnoreCase);
+                            <tr>
+                                <td class="whitespace-nowrap text-[#5f6f66]">@fila.FechaHora.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                <td class="font-bold text-[#13251c]">@fila.InsumoNombre</td>
+                                <td>
+                                    <span class="rs-badge @(esEntrada ? "rs-badge--ok" : "rs-badge--critico")">@(esEntrada ? "Entrada" : "Salida")</span>
+                                </td>
+                                <td class="whitespace-nowrap font-extrabold @(esEntrada ? "text-[#2b8a5b]" : "text-[#b33a48]")">
+                                    @(esEntrada ? "+" : "-") @fila.Cantidad.ToString("0.###") @fila.UnidadMedida
+                                </td>
+                                <td class="text-[#5f6f66]">@fila.Responsable</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>

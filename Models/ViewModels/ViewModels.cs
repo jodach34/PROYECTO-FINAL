@@ -57,6 +57,49 @@ public sealed record PanelViewModel
     public int TotalInsumos => Comedores.Sum(c => c.TotalInsumos);
 }
 
+public sealed record InventarioViewModel
+{
+    public IReadOnlyList<ComedorResumen> Comedores { get; init; } = [];
+
+    public ComedorDetalle? Comedor { get; init; }
+
+    public IReadOnlyList<KardexFila> Kardex { get; init; } = [];
+
+    public string? Error { get; init; }
+
+    public string? Exito { get; init; }
+
+    public InsumoFormViewModel Insumo { get; init; } = new();
+
+    public ConsumoFormViewModel Consumo { get; init; } = new();
+}
+
+public sealed class InsumoFormViewModel
+{
+    public Guid? ComedorId { get; set; }
+
+    public string Nombre { get; set; } = string.Empty;
+
+    public string UnidadMedida { get; set; } = string.Empty;
+
+    public decimal StockInicial { get; set; }
+
+    public decimal StockMaximo { get; set; }
+}
+
+public sealed class ConsumoFormViewModel
+{
+    public Guid? ComedorId { get; set; }
+
+    public Guid? InsumoId { get; set; }
+
+    public decimal Cantidad { get; set; }
+
+    public string Responsable { get; set; } = string.Empty;
+
+    public string Concepto { get; set; } = "Consumo diario";
+}
+
 /// <summary>
 /// Banco de Alimentos: el formulario de donacion y las opciones para llenarlo.
 ///
@@ -133,6 +176,48 @@ public sealed record SeguimientoViewModel
         string.Equals(Donacion?.Estado, estado, StringComparison.OrdinalIgnoreCase);
 }
 
+/// <summary>Listado administrativo de donaciones con filtros y paginacion.</summary>
+public sealed record DonacionesGestionViewModel
+{
+    public IReadOnlyList<DonacionRegistrada> Donaciones { get; init; } = [];
+
+    public IReadOnlyList<ComedorResumen> Comedores { get; init; } = [];
+
+    public string? Estado { get; init; }
+
+    public Guid? ComedorId { get; init; }
+
+    public string? Busqueda { get; init; }
+
+    public int Pagina { get; init; } = 1;
+
+    public int TamanoPagina { get; init; } = 20;
+
+    public int TotalCount { get; init; }
+
+    public int TotalPages { get; init; }
+
+    public bool HasPrevious { get; init; }
+
+    public bool HasNext { get; init; }
+
+    public string? Error { get; init; }
+
+    public string? Exito { get; init; }
+}
+
+/// <summary>Detalle de una donacion y su linea de tiempo de estados.</summary>
+public sealed record DonacionDetalleViewModel
+{
+    public DonacionRegistrada? Donacion { get; init; }
+
+    public IReadOnlyList<DonacionHistorialApi> Historial { get; init; } = [];
+
+    public string? Error { get; init; }
+
+    public string? Exito { get; init; }
+}
+
 /// <summary>Ficha publica de un comedor, con su inventario actual.</summary>
 public sealed record ComedorDetalleViewModel
 {
@@ -174,4 +259,44 @@ public static class Presentacion
     public static string ClaseBarra(string estado) => $"rs-progress__bar rs-progress__bar--{ColorEstado(estado)}";
 
     public static string ClasePin(string estado) => $"rs-pin rs-pin--{ColorEstado(estado)}";
+
+    public static string EtiquetaEstadoDonacion(string estado) => estado switch
+    {
+        "Pendiente" => "Pendiente",
+        "Confirmada" => "Confirmada",
+        "EnTransito" => "En tránsito",
+        "Entregada" => "Entregada",
+        "Cancelada" => "Cancelada",
+        "Anulada" => "Anulada",
+        _ => estado
+    };
+
+    public static string ClaseEstadoDonacion(string estado) =>
+        $"rs-badge rs-badge--{ColorEstadoDonacion(estado)}";
+
+    public static string ColorEstadoDonacion(string estado) => estado switch
+    {
+        "Pendiente" => "alerta",
+        "Confirmada" => "brand",
+        "EnTransito" => "brand",
+        "Entregada" => "ok",
+        "Cancelada" => "muted",
+        "Anulada" => "critico",
+        _ => "muted"
+    };
+
+    public static bool PuedeConfirmarDonacion(string estado) =>
+        string.Equals(estado, "Pendiente", StringComparison.OrdinalIgnoreCase);
+
+    public static bool PuedePonerEnTransito(string estado) =>
+        string.Equals(estado, "Confirmada", StringComparison.OrdinalIgnoreCase);
+
+    public static bool PuedeEntregarDonacion(string estado) =>
+        string.Equals(estado, "EnTransito", StringComparison.OrdinalIgnoreCase);
+
+    public static bool PuedeCerrarDonacion(string estado) =>
+        estado is "Pendiente" or "Confirmada" or "EnTransito";
+
+    public static bool PuedeEliminarDonacion(string estado) =>
+        estado is "Pendiente" or "Cancelada" or "Anulada";
 }
