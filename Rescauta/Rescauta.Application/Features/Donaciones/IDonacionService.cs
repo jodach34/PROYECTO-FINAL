@@ -19,8 +19,12 @@ public interface IDonacionService
         Guid? usuarioId = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Donaciones registradas, de la mas reciente a la mas antigua.</summary>
+    /// <summary>
+    /// Donaciones registradas, de la mas reciente a la mas antigua. El administrador ve
+    /// todas; los demas roles solo las de sus comedores asignados.
+    /// </summary>
     Task<Result<IReadOnlyList<DonacionResultDto>>> ObtenerAsync(
+        UsuarioOperacion usuario,
         int limite = 50,
         CancellationToken cancellationToken = default);
 

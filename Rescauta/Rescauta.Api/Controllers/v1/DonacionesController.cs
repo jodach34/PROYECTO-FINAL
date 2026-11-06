@@ -33,7 +33,17 @@ public sealed class DonacionesController(IDonacionService donacionService) : Api
         [FromQuery] int limite = 50,
         CancellationToken cancellationToken = default)
     {
-        return FromResult(await donacionService.ObtenerAsync(limite, cancellationToken));
+        var usuario = UsuarioActual();
+
+        if (usuario is null)
+        {
+            return Unauthorized();
+        }
+
+        return FromResult(await donacionService.ObtenerAsync(
+            usuario,
+            limite,
+            cancellationToken));
     }
 
     [HttpGet("mias")]

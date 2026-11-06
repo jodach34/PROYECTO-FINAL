@@ -148,9 +148,12 @@ public sealed class DonacionService(
     }
 
     public async Task<Result<IReadOnlyList<DonacionResultDto>>> ObtenerAsync(
+        UsuarioOperacion usuario,
         int limite = 50,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(usuario);
+
         if (limite is < 1 or > LimiteListado)
         {
             return Result<IReadOnlyList<DonacionResultDto>>.Failure(
@@ -158,10 +161,24 @@ public sealed class DonacionService(
                 $"El limite debe estar entre 1 y {LimiteListado}.");
         }
 
-        var filas = await dbContext
+        var consulta = dbContext
             .Set<Donacion>()
             .AsNoTracking()
-            .Where(d => !d.IsDeleted)
+            .Where(d => !d.IsDeleted);
+
+        if (!usuario.EsAdministrador)
+        {
+            var comedores = usuario.ComedoresAsignados.ToArray();
+
+            if (comedores.Length == 0)
+            {
+                return Result<IReadOnlyList<DonacionResultDto>>.Success([]);
+            }
+
+            consulta = consulta.Where(d => comedores.Contains(d.ComedorId));
+        }
+
+        var filas = await consulta
             .OrderByDescending(d => d.FechaDonacionUtc)
             .ThenByDescending(d => d.CreatedAt)
             .Take(limite)
