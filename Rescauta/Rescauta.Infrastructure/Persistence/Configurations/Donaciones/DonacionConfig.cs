@@ -31,11 +31,34 @@ public sealed class DonacionConfig : IEntityTypeConfiguration<Donacion>
             .IsRequired()
             .HasComment("Insumo donado. Referencia al modulo Kardex, sin FK todavia.");
 
+        builder.Property(d => d.ComedorId)
+            .IsRequired()
+            .HasComment("Comedor destino. Se resuelve del insumo al registrar.");
+
+        builder.Property(d => d.InsumoNombre)
+            .IsRequired()
+            .HasMaxLength(Donacion.InsumoNombreMaxLength);
+
+        builder.Property(d => d.UnidadMedida)
+            .IsRequired()
+            .HasMaxLength(Donacion.UnidadMedidaMaxLength);
+
+        builder.Property(d => d.ComedorNombre)
+            .IsRequired()
+            .HasMaxLength(Donacion.ComedorNombreMaxLength);
+
+        builder.Property(d => d.PuntoRecojo)
+            .HasMaxLength(Donacion.PuntoRecojoMaxLength);
+
         builder.Property(d => d.Cantidad)
             .IsRequired();
 
         builder.Property(d => d.FechaDonacion)
             .IsRequired();
+
+        builder.Property(d => d.FechaDonacionUtc)
+            .IsRequired()
+            .HasComment("FechaDonacion en UTC. SQLite no ordena DateTimeOffset.");
 
         builder.Property(d => d.Donante)
             .IsRequired()
@@ -49,6 +72,14 @@ public sealed class DonacionConfig : IEntityTypeConfiguration<Donacion>
         builder.Property(d => d.CodigoSeguimiento)
             .IsRequired()
             .HasMaxLength(Donacion.CodigoSeguimientoMaxLength);
+
+        builder.Property(d => d.FechaConfirmacion);
+        builder.Property(d => d.FechaEnTransito);
+        builder.Property(d => d.FechaEntrega);
+        builder.Property(d => d.FechaCierre);
+
+        builder.Property(d => d.MotivoCierre)
+            .HasMaxLength(Donacion.MotivoCierreMaxLength);
 
         // Token de concurrencia ver la nota del resumen de la clase.
         builder.Property(d => d.RowVersion)
@@ -66,6 +97,12 @@ public sealed class DonacionConfig : IEntityTypeConfiguration<Donacion>
 
         builder.HasIndex(d => d.FechaDonacion)
             .HasDatabaseName("ix_donaciones_fecha");
+
+        builder.HasIndex(d => d.FechaDonacionUtc)
+            .HasDatabaseName("ix_donaciones_fecha_utc");
+
+        builder.HasIndex(d => d.ComedorId)
+            .HasDatabaseName("ix_donaciones_comedor");
 
         builder.HasIndex(d => d.Estado)
             .HasDatabaseName("ix_donaciones_estado");

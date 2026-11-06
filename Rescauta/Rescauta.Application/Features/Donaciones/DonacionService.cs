@@ -1,8 +1,16 @@
+using FluentValidation;
+using FluentValidation.Results;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Rescauta.Application.Common;
 using Rescauta.Application.Features.Donaciones.Dto;
+using Rescauta.Application.Features.Donaciones.Events;
+using Rescauta.Application.Features.Kardex;
+using Rescauta.Application.Features.Kardex.Dto;
 using Rescauta.Application.Interfaces;
+using Rescauta.Application.Interfaces.Caching;
+using Rescauta.Application.Interfaces.RealTime;
 using Rescauta.Domain.Entities.Comedores;
 using Rescauta.Domain.Entities.Donaciones;
 using Rescauta.Domain.Entities.Kardex;
@@ -13,26 +21,29 @@ namespace Rescauta.Application.Features.Donaciones;
 /// <summary>
 /// Casos de uso de donacion.
 ///
-/// REGLA CENTRAL DE RegistrarAsync: el saldo NUNCA se toca a mano. La donacion no suma
-/// stock por su cuenta; llama a <see cref="Insumo.RegistrarEntrada"/>, que es el metodo de
-/// negocio del agregado y el unico que puede mover <c>StockActual</c>. Si este servicio
-/// hiciera <c>insumo.StockActual += cantidad</c>, el inventario podria descuadrarse del
-/// kardex sin que nadie lo note.
+/// REGLA CENTRAL: registrar una donacion NO mueve stock. La donacion nace Pendiente y la
+/// entrada al kardex ocurre al confirmar la recepcion, cuando la coordinacion verifica que
+/// los insumos llegaron fisicamente. Cancelar o anular una donacion que ya ingreso stock
+/// publica un evento de reversion.
 ///
-/// La transaccion es una sola: si el asiento se asienta y la donacion no se guarda, queda
-/// mercancia entrando sin donante, que es exactamente el escenario que el kardex existe
-/// para evitar.
+/// El movimiento de stock lo hace el handler del evento, no este servicio. Asi Donaciones
+/// no conoce las entidades de Kardex y se cumple la regla del README del modulo: los dos
+/// modulos se comunican por eventos, no por llamadas directas.
 /// </summary>
 public sealed class DonacionService(
     IAppDbContext dbContext,
+    IPublisher publisher,
+    InventarioDonacionResultado inventarioResultado,
+    ICacheService cacheService,
+    IInventoryNotifier notifier,
+    IValidator<RegistrarDonacionDto> registrarValidator,
+    IValidator<MotivoDonacionDto> motivoValidator,
     ILogger<DonacionService> logger) : IDonacionService
 {
-    /// <summary>
-    /// Prefijo del codigo de seguimiento. El anio va dentro porque el volumen de donaciones
-    /// de una organizacion pequena cabe de sobra en 5 digitos y asi el codigo se lee solo
-    /// por telefono.
-    /// </summary>
     private const string PrefijoCodigo = "DON";
+    private const string CacheDonaciones = "rescauta:donaciones:";
+    private const string CacheKardex = "rescauta:kardex:";
+    private const int LimiteListado = 200;
 
     public async Task<Result<DonacionResultDto>> RegistrarAsync(
         RegistrarDonacionDto donacion,
@@ -41,32 +52,22 @@ public sealed class DonacionService(
     {
         ArgumentNullException.ThrowIfNull(donacion);
 
-        if (donacion.InsumoId == Guid.Empty)
+        var validacion = await registrarValidator.ValidateAsync(donacion, cancellationToken);
+        if (!validacion.IsValid)
         {
             return Result<DonacionResultDto>.Failure(
                 DonacionErrorCodes.Validacion,
-                "El insumo a donar es obligatorio.");
+                FormatearErrores(validacion));
         }
 
-        if (donacion.Cantidad <= 0)
-        {
-            return Result<DonacionResultDto>.Failure(
-                DonacionErrorCodes.Validacion,
-                "La cantidad debe ser mayor que cero.");
-        }
-
-        if (string.IsNullOrWhiteSpace(donacion.Donante))
-        {
-            return Result<DonacionResultDto>.Failure(
-                DonacionErrorCodes.Validacion,
-                "El nombre del donante es obligatorio.");
-        }
-
-        // AsNoTracking NO: el agregado tiene que quedar tracked para que EF vea el cambio
-        // de StockActual y el movimiento hijo agregado en la coleccion.
+        // AsNoTracking: registrar no modifica el insumo. El stock recien se mueve al
+        // confirmar, y ese handler carga su propia instancia tracked.
         var insumo = await dbContext
             .Set<Insumo>()
-            .FirstOrDefaultAsync(x => x.Id == donacion.InsumoId, cancellationToken);
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.Id == donacion.InsumoId && !x.IsDeleted,
+                cancellationToken);
 
         if (insumo is null)
         {
@@ -75,28 +76,21 @@ public sealed class DonacionService(
                 $"No existe un insumo con id {donacion.InsumoId}.");
         }
 
-        // El destino se resuelve del insumo, nunca del cliente: es la unica forma de que el
-        // codigo de donacion apunte a algo real, y evita que se done a un comedor que no
-        // existe por error de dedo.
         var comedor = await dbContext
             .Set<Comedor>()
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == insumo.ComedorId, cancellationToken);
+            .FirstOrDefaultAsync(
+                x => x.Id == insumo.ComedorId && !x.IsDeleted,
+                cancellationToken);
 
         if (comedor is null)
         {
             return Result<DonacionResultDto>.Failure(
                 DonacionErrorCodes.InsumoNoEncontrado,
-                $"El insumo {insumo.Nombre} no pertenece a ningun comedor.");
+                $"El insumo {insumo.Nombre} no pertenece a ningun comedor activo.");
         }
 
-        var concepto = string.IsNullOrWhiteSpace(donacion.PuntoRecojo)
-            ? $"Donacion de {donacion.Donante}"
-            : $"Donacion de {donacion.Donante} - {donacion.PuntoRecojo}";
-
         Donacion entidad;
-        MovimientoKardex asiento;
-
         try
         {
             entidad = Donacion.Registrar(
@@ -104,15 +98,13 @@ public sealed class DonacionService(
                 donacion.Cantidad,
                 donacion.Donante,
                 GenerarCodigoSeguimiento(),
+                comedor.Id,
+                insumo.Nombre,
+                insumo.UnidadMedida,
+                comedor.Nombre,
+                puntoRecojo: donacion.PuntoRecojo,
                 fechaDonacion: null,
                 usuarioId: usuarioId);
-
-            // LA REGLA DE NEGOCIO: el saldo lo mueve el agregado, no el servicio. Si el
-            // agregado rechaza la entrada (cantidad cero, campos vacios) no se escribe nada.
-            asiento = insumo.RegistrarEntrada(
-                cantidad: donacion.Cantidad,
-                responsable: donacion.Donante,
-                concepto: concepto);
         }
         catch (DomainException ex)
         {
@@ -125,32 +117,14 @@ public sealed class DonacionService(
             return Result<DonacionResultDto>.Failure(DonacionErrorCodes.Validacion, ex.Message);
         }
 
-        // Las dos escrituras se registran a mano. No por descuido, sino porque EF no
-        // puede inferirlas solo:
-        //
-        //   * La donacion es una entidad nueva y aislada: no cuelga de ninguna navegacion,
-        //     asi que no hay de donde descubrirla. Sin este Add no se guardaria nunca, y el
-        //     POST devolveria 201 con una donacion que no existe en la base.
-        //   * El asiento es hijo del agregado Insumo, y la coleccion del dominio es de solo
-        //     lectura, asi que EF lo toma por una entidad ya existente, lo manda como UPDATE
-        //     contra una fila que no esta, y el UPDATE afecta cero filas.
-        //
-        // El saldo no necesita el mismo trato: es una propiedad escalar y EF la ve sin
-        // problema, porque el agregado se cargo con una consulta.
         dbContext.Set<Donacion>().Add(entidad);
-        dbContext.Set<MovimientoKardex>().Add(asiento);
 
         try
         {
-            // Un solo SaveChanges: la donacion y el asiento se escriben juntos o ninguno.
             await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException ex) when (EsViolacionDeUnico(ex))
         {
-            // Lo unico que puede chocar aqui es el indice unico del codigo de seguimiento.
-            // El agregado no lanza por eso en memoria, asi que la garantia real la da la
-            // base: aqui solo se traduce el fallo a un mensaje que el cliente pueda
-            // reintentar sin sacar al operador de la pantalla.
             logger.LogWarning(ex, "Colision del codigo de seguimiento de la donacion.");
 
             return Result<DonacionResultDto>.Failure(
@@ -158,29 +132,17 @@ public sealed class DonacionService(
                 "No se pudo generar un codigo de seguimiento unico. Reintente.");
         }
 
-        var resultado = new DonacionResultDto
-        {
-            DonacionId = entidad.Id,
-            CodigoSeguimiento = entidad.CodigoSeguimiento,
-            InsumoId = insumo.Id,
-            InsumoNombre = insumo.Nombre,
-            ComedorId = comedor.Id,
-            ComedorNombre = comedor.Nombre,
-            Cantidad = entidad.Cantidad,
-            UnidadMedida = insumo.UnidadMedida,
-            Donante = entidad.Donante,
-            Estado = entidad.Estado.ToString(),
-            FechaDonacion = entidad.FechaDonacion,
-            StockResultante = insumo.StockActual
-        };
+        await InvalidarCacheAsync(cancellationToken);
+
+        var resultado = Mapear(entidad, insumo.StockActual);
 
         logger.LogInformation(
-            "Donacion registrada. Codigo={Codigo}, Comedor={Comedor}, Insumo={Insumo}, Cantidad={Cantidad}, StockResultante={Stock}",
+            "Donacion registrada en estado Pendiente. Codigo={Codigo}, Comedor={Comedor}, " +
+            "Insumo={Insumo}, Cantidad={Cantidad}",
             entidad.CodigoSeguimiento,
             comedor.Nombre,
             insumo.Nombre,
-            entidad.Cantidad,
-            insumo.StockActual);
+            entidad.Cantidad);
 
         return Result<DonacionResultDto>.Success(resultado);
     }
@@ -189,71 +151,24 @@ public sealed class DonacionService(
         int limite = 50,
         CancellationToken cancellationToken = default)
     {
-        if (limite is < 1 or > 200)
+        if (limite is < 1 or > LimiteListado)
         {
             return Result<IReadOnlyList<DonacionResultDto>>.Failure(
                 DonacionErrorCodes.Validacion,
-                "El limite debe estar entre 1 y 200.");
+                $"El limite debe estar entre 1 y {LimiteListado}.");
         }
 
-        // Una sola consulta con dos subconsultas correlacionadas en vez de tres
-        // round-trips: el nombre del insumo y el del comedor son los unicos datos que
-        // Donacion no trae (solo guarda InsumoId).
-        //
-        // EL ORDEN Y EL ESTADO SE RESUELVEN EN MEMORIA por dos razones distintas, ambas por
-        // el proveedor:
-        //
-        //   * FechaDonacion es DateTimeOffset y SQLite no admite ORDER BY sobre ese tipo
-        //     ("SQLite does not support expressions of type 'DateTimeOffset' in ORDER BY
-        //     clauses"). Por eso no hay orderby aqui: el limite se aplica despues de
-        //     ordenar, o se trae una lista sin los N mas recientes.
-        //   * Estado.ToString() tampoco se traduce a SQL. El enum vuelve como numero y se
-        //     convierte aqui, que es donde vive la regla de presentacion. Por eso el DTO lo
-        //     expone como texto y el Razor no tiene que conocer el enum.
-        var filas = await (
-            from d in dbContext.Set<Donacion>().AsNoTracking()
-            join i in dbContext.Set<Insumo>().AsNoTracking() on d.InsumoId equals i.Id into insumos
-            from i in insumos.DefaultIfEmpty()
-            join c in dbContext.Set<Comedor>().AsNoTracking() on i.ComedorId equals c.Id into comedores
-            from c in comedores.DefaultIfEmpty()
-            select new
-            {
-                d.Id,
-                d.CodigoSeguimiento,
-                d.InsumoId,
-                InsumoNombre = i != null ? i.Nombre : string.Empty,
-                UnidadMedida = i != null ? i.UnidadMedida : string.Empty,
-                ComedorId = i != null ? i.ComedorId : Guid.Empty,
-                ComedorNombre = c != null ? c.Nombre : string.Empty,
-                d.Cantidad,
-                d.Donante,
-                d.Estado,
-                d.FechaDonacion,
-                d.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
-
-        var lista = filas
-            .OrderByDescending(d => d.FechaDonacion)
+        var filas = await dbContext
+            .Set<Donacion>()
+            .AsNoTracking()
+            .Where(d => !d.IsDeleted)
+            .OrderByDescending(d => d.FechaDonacionUtc)
             .ThenByDescending(d => d.CreatedAt)
             .Take(limite)
-            .Select(d => new DonacionResultDto
-            {
-                DonacionId = d.Id,
-                CodigoSeguimiento = d.CodigoSeguimiento,
-                InsumoId = d.InsumoId,
-                InsumoNombre = d.InsumoNombre,
-                UnidadMedida = d.UnidadMedida,
-                ComedorId = d.ComedorId,
-                ComedorNombre = d.ComedorNombre,
-                Cantidad = d.Cantidad,
-                Donante = d.Donante,
-                Estado = d.Estado.ToString(),
-                FechaDonacion = d.FechaDonacion
-            })
-            .ToList();
+            .ToListAsync(cancellationToken);
 
-        return Result<IReadOnlyList<DonacionResultDto>>.Success(lista);
+        return Result<IReadOnlyList<DonacionResultDto>>.Success(
+            filas.Select(d => Mapear(d, 0m)).ToList());
     }
 
     public async Task<Result<IReadOnlyList<DonacionResultDto>>> ObtenerPorUsuarioAsync(
@@ -268,58 +183,24 @@ public sealed class DonacionService(
                 "El usuario es obligatorio.");
         }
 
-        if (limite is < 1 or > 200)
+        if (limite is < 1 or > LimiteListado)
         {
             return Result<IReadOnlyList<DonacionResultDto>>.Failure(
                 DonacionErrorCodes.Validacion,
-                "El limite debe estar entre 1 y 200.");
+                $"El limite debe estar entre 1 y {LimiteListado}.");
         }
 
-        var filas = await (
-            from d in dbContext.Set<Donacion>().AsNoTracking()
-            join i in dbContext.Set<Insumo>().AsNoTracking() on d.InsumoId equals i.Id into insumos
-            from i in insumos.DefaultIfEmpty()
-            join c in dbContext.Set<Comedor>().AsNoTracking() on i.ComedorId equals c.Id into comedores
-            from c in comedores.DefaultIfEmpty()
-            where d.UsuarioId == usuarioId
-            select new
-            {
-                d.Id,
-                d.CodigoSeguimiento,
-                d.InsumoId,
-                InsumoNombre = i != null ? i.Nombre : string.Empty,
-                UnidadMedida = i != null ? i.UnidadMedida : string.Empty,
-                ComedorId = i != null ? i.ComedorId : Guid.Empty,
-                ComedorNombre = c != null ? c.Nombre : string.Empty,
-                d.Cantidad,
-                d.Donante,
-                d.Estado,
-                d.FechaDonacion,
-                d.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
-
-        var lista = filas
-            .OrderByDescending(d => d.FechaDonacion)
+        var filas = await dbContext
+            .Set<Donacion>()
+            .AsNoTracking()
+            .Where(d => !d.IsDeleted && d.UsuarioId == usuarioId)
+            .OrderByDescending(d => d.FechaDonacionUtc)
             .ThenByDescending(d => d.CreatedAt)
             .Take(limite)
-            .Select(d => new DonacionResultDto
-            {
-                DonacionId = d.Id,
-                CodigoSeguimiento = d.CodigoSeguimiento,
-                InsumoId = d.InsumoId,
-                InsumoNombre = d.InsumoNombre,
-                UnidadMedida = d.UnidadMedida,
-                ComedorId = d.ComedorId,
-                ComedorNombre = d.ComedorNombre,
-                Cantidad = d.Cantidad,
-                Donante = d.Donante,
-                Estado = d.Estado.ToString(),
-                FechaDonacion = d.FechaDonacion
-            })
-            .ToList();
+            .ToListAsync(cancellationToken);
 
-        return Result<IReadOnlyList<DonacionResultDto>>.Success(lista);
+        return Result<IReadOnlyList<DonacionResultDto>>.Success(
+            filas.Select(d => Mapear(d, 0m)).ToList());
     }
 
     public async Task<Result<DonacionResultDto>> ObtenerPorCodigoAsync(
@@ -333,35 +214,16 @@ public sealed class DonacionService(
                 "Escribe el codigo de seguimiento de tu donacion.");
         }
 
-        // Los codigos se generan en mayusculas. Normalizar aqui permite que el donante
-        // escriba "don-2026-00421" en minusculas sin recibir un "no existe".
         var normalizado = codigo.Trim().ToUpperInvariant();
 
-        var fila = await (
-            from d in dbContext.Set<Donacion>().AsNoTracking()
-            join i in dbContext.Set<Insumo>().AsNoTracking() on d.InsumoId equals i.Id into insumos
-            from i in insumos.DefaultIfEmpty()
-            join c in dbContext.Set<Comedor>().AsNoTracking() on i.ComedorId equals c.Id into comedores
-            from c in comedores.DefaultIfEmpty()
-            where d.CodigoSeguimiento == normalizado
-            select new
-            {
-                d.Id,
-                d.CodigoSeguimiento,
-                d.InsumoId,
-                InsumoNombre = i != null ? i.Nombre : string.Empty,
-                UnidadMedida = i != null ? i.UnidadMedida : string.Empty,
-                ComedorId = i != null ? i.ComedorId : Guid.Empty,
-                ComedorNombre = c != null ? c.Nombre : string.Empty,
-                d.Cantidad,
-                d.Donante,
-                d.Estado,
-                d.FechaDonacion,
-                StockActual = i != null ? i.StockActual : 0m
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+        var entidad = await dbContext
+            .Set<Donacion>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                d => d.CodigoSeguimiento == normalizado && !d.IsDeleted,
+                cancellationToken);
 
-        if (fila is null)
+        if (entidad is null)
         {
             return Result<DonacionResultDto>.Failure(
                 DonacionErrorCodes.DonacionNoEncontrada,
@@ -369,40 +231,588 @@ public sealed class DonacionService(
                 "Revisa que este bien escrito o contacta a la coordinacion.");
         }
 
-        return Result<DonacionResultDto>.Success(new DonacionResultDto
-        {
-            DonacionId = fila.Id,
-            CodigoSeguimiento = fila.CodigoSeguimiento,
-            InsumoId = fila.InsumoId,
-            InsumoNombre = fila.InsumoNombre,
-            UnidadMedida = fila.UnidadMedida,
-            ComedorId = fila.ComedorId,
-            ComedorNombre = fila.ComedorNombre,
-            Cantidad = fila.Cantidad,
-            Donante = fila.Donante,
-            Estado = fila.Estado.ToString(),
-            FechaDonacion = fila.FechaDonacion,
-            StockResultante = fila.StockActual
-        });
+        var stock = await ObtenerStockAsync(entidad.InsumoId, cancellationToken);
+
+        return Result<DonacionResultDto>.Success(Mapear(entidad, stock));
     }
 
-    /// <summary>
-    /// Genera el codigo de seguimiento: DON-2026-00421.
-    ///
-    /// La parte aleatoria usa <see cref="Random.Shared"/> y no un Guid porque el codigo lo
-    /// lee una persona por telefono y tiene que ser corto. El indice unico de la tabla es
-    /// la garantia real de que no se repita; esto solo hace la colision improbable.
-    /// </summary>
+    public async Task<Result<PagedResult<DonacionResultDto>>> BuscarAsync(
+        DonacionFiltroDto filtro,
+        UsuarioOperacion usuario,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
+        ArgumentNullException.ThrowIfNull(usuario);
+
+        if (filtro.Pagina < 1)
+        {
+            return Result<PagedResult<DonacionResultDto>>.Failure(
+                DonacionErrorCodes.Validacion,
+                "La pagina debe ser mayor o igual a 1.");
+        }
+
+        if (filtro.TamanoPagina is < 1 or > 100)
+        {
+            return Result<PagedResult<DonacionResultDto>>.Failure(
+                DonacionErrorCodes.Validacion,
+                "El tamano de pagina debe estar entre 1 y 100.");
+        }
+
+        if (filtro.ComedorId is { } comedorSolicitado && !usuario.PuedeOperar(comedorSolicitado))
+        {
+            return Result<PagedResult<DonacionResultDto>>.Failure(
+                DonacionErrorCodes.SinPermiso,
+                "No tienes permisos para consultar las donaciones de ese comedor.");
+        }
+
+        var consulta = dbContext
+            .Set<Donacion>()
+            .AsNoTracking()
+            .Where(d => !d.IsDeleted);
+
+        if (!usuario.EsAdministrador)
+        {
+            var comedores = usuario.ComedoresAsignados.ToArray();
+
+            if (comedores.Length == 0)
+            {
+                return Result<PagedResult<DonacionResultDto>>.Success(
+                    PagedResult<DonacionResultDto>.Create(
+                        [],
+                        0,
+                        filtro.Pagina,
+                        filtro.TamanoPagina));
+            }
+
+            consulta = consulta.Where(d => comedores.Contains(d.ComedorId));
+        }
+
+        if (filtro.ComedorId is { } comedorId)
+        {
+            consulta = consulta.Where(d => d.ComedorId == comedorId);
+        }
+
+        if (filtro.InsumoId is { } insumoId)
+        {
+            consulta = consulta.Where(d => d.InsumoId == insumoId);
+        }
+
+        if (filtro.Estado is { } estado)
+        {
+            consulta = consulta.Where(d => d.Estado == estado);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Busqueda))
+        {
+            var termino = filtro.Busqueda.Trim().ToUpperInvariant();
+            consulta = consulta.Where(d =>
+                d.CodigoSeguimiento.Contains(termino) ||
+                d.Donante.ToUpper().Contains(termino));
+        }
+
+        if (filtro.Desde is { } desde)
+        {
+            var desdeUtc = desde.UtcDateTime;
+            consulta = consulta.Where(d => d.FechaDonacionUtc >= desdeUtc);
+        }
+
+        if (filtro.Hasta is { } hasta)
+        {
+            var hastaUtc = hasta.UtcDateTime;
+            consulta = consulta.Where(d => d.FechaDonacionUtc <= hastaUtc);
+        }
+
+        var total = await consulta.CountAsync(cancellationToken);
+
+        var filas = await consulta
+            .OrderByDescending(d => d.FechaDonacionUtc)
+            .ThenByDescending(d => d.CreatedAt)
+            .Skip((filtro.Pagina - 1) * filtro.TamanoPagina)
+            .Take(filtro.TamanoPagina)
+            .ToListAsync(cancellationToken);
+
+        var items = filas.Select(d => Mapear(d, 0m)).ToList();
+
+        return Result<PagedResult<DonacionResultDto>>.Success(
+            PagedResult<DonacionResultDto>.Create(
+                items,
+                total,
+                filtro.Pagina,
+                filtro.TamanoPagina));
+    }
+
+    public async Task<Result<DonacionResultDto>> ObtenerPorIdAsync(
+        Guid donacionId,
+        UsuarioOperacion usuario,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(usuario);
+
+        var entidad = await dbContext
+            .Set<Donacion>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                d => d.Id == donacionId && !d.IsDeleted,
+                cancellationToken);
+
+        if (entidad is null)
+        {
+            return Result<DonacionResultDto>.Failure(
+                DonacionErrorCodes.DonacionNoEncontrada,
+                "No existe la donacion solicitada.");
+        }
+
+        if (!usuario.PuedeOperar(entidad.ComedorId))
+        {
+            return Result<DonacionResultDto>.Failure(
+                DonacionErrorCodes.SinPermiso,
+                "No tienes permisos para consultar esta donacion.");
+        }
+
+        var stock = await ObtenerStockAsync(entidad.InsumoId, cancellationToken);
+
+        return Result<DonacionResultDto>.Success(Mapear(entidad, stock));
+    }
+
+    public async Task<Result<IReadOnlyList<DonacionHistorialDto>>> ObtenerHistorialAsync(
+        Guid donacionId,
+        UsuarioOperacion usuario,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(usuario);
+
+        var donacion = await dbContext
+            .Set<Donacion>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                d => d.Id == donacionId && !d.IsDeleted,
+                cancellationToken);
+
+        if (donacion is null)
+        {
+            return Result<IReadOnlyList<DonacionHistorialDto>>.Failure(
+                DonacionErrorCodes.DonacionNoEncontrada,
+                "No existe la donacion solicitada.");
+        }
+
+        if (!usuario.PuedeOperar(donacion.ComedorId))
+        {
+            return Result<IReadOnlyList<DonacionHistorialDto>>.Failure(
+                DonacionErrorCodes.SinPermiso,
+                "No tienes permisos para consultar esta donacion.");
+        }
+
+        var filas = await dbContext
+            .Set<DonacionHistorial>()
+            .AsNoTracking()
+            .Where(h => h.DonacionId == donacionId)
+            .OrderBy(h => h.Fecha)
+            .ToListAsync(cancellationToken);
+
+        var historial = filas
+            .Select(h => new DonacionHistorialDto
+            {
+                EstadoAnterior = h.EstadoAnterior.ToString(),
+                EstadoNuevo = h.EstadoNuevo.ToString(),
+                Motivo = h.Motivo,
+                UsuarioId = h.UsuarioId,
+                Fecha = h.Fecha
+            })
+            .ToList();
+
+        return Result<IReadOnlyList<DonacionHistorialDto>>.Success(historial);
+    }
+
+    public Task<Result<DonacionResultDto>> ConfirmarAsync(
+        Guid donacionId,
+        UsuarioOperacion usuario,
+        CancellationToken cancellationToken = default)
+    {
+        return EjecutarTransicionAsync(
+            donacionId,
+            usuario,
+            "confirmar",
+            donacion => donacion.ConfirmarRecepcion(),
+            reversionDeStock: false,
+            cancellationToken);
+    }
+
+    public Task<Result<DonacionResultDto>> MarcarEnTransitoAsync(
+        Guid donacionId,
+        UsuarioOperacion usuario,
+        CancellationToken cancellationToken = default)
+    {
+        return EjecutarTransicionAsync(
+            donacionId,
+            usuario,
+            "marcar en transito",
+            donacion => donacion.MarcarEnTransito(),
+            reversionDeStock: false,
+            cancellationToken);
+    }
+
+    public Task<Result<DonacionResultDto>> EntregarAsync(
+        Guid donacionId,
+        UsuarioOperacion usuario,
+        CancellationToken cancellationToken = default)
+    {
+        return EjecutarTransicionAsync(
+            donacionId,
+            usuario,
+            "entregar",
+            donacion => donacion.MarcarEntregada(),
+            reversionDeStock: false,
+            cancellationToken);
+    }
+
+    public async Task<Result<DonacionResultDto>> CancelarAsync(
+        Guid donacionId,
+        MotivoDonacionDto motivo,
+        UsuarioOperacion usuario,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(motivo);
+
+        var validacion = await motivoValidator.ValidateAsync(motivo, cancellationToken);
+        if (!validacion.IsValid)
+        {
+            return Result<DonacionResultDto>.Failure(
+                DonacionErrorCodes.Validacion,
+                FormatearErrores(validacion));
+        }
+
+        return await EjecutarTransicionAsync(
+            donacionId,
+            usuario,
+            "cancelar",
+            donacion => donacion.Cancelar(motivo.Motivo),
+            reversionDeStock: true,
+            cancellationToken);
+    }
+
+    public async Task<Result<DonacionResultDto>> AnularAsync(
+        Guid donacionId,
+        MotivoDonacionDto motivo,
+        UsuarioOperacion usuario,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(motivo);
+
+        var validacion = await motivoValidator.ValidateAsync(motivo, cancellationToken);
+        if (!validacion.IsValid)
+        {
+            return Result<DonacionResultDto>.Failure(
+                DonacionErrorCodes.Validacion,
+                FormatearErrores(validacion));
+        }
+
+        return await EjecutarTransicionAsync(
+            donacionId,
+            usuario,
+            "anular",
+            donacion => donacion.Anular(motivo.Motivo),
+            reversionDeStock: true,
+            cancellationToken);
+    }
+
+    public async Task<Result> EliminarAsync(
+        Guid donacionId,
+        UsuarioOperacion usuario,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(usuario);
+
+        var donacion = await dbContext
+            .Set<Donacion>()
+            .FirstOrDefaultAsync(
+                d => d.Id == donacionId && !d.IsDeleted,
+                cancellationToken);
+
+        if (donacion is null)
+        {
+            return Result.Failure(
+                DonacionErrorCodes.DonacionNoEncontrada,
+                "No existe la donacion solicitada.");
+        }
+
+        if (!usuario.PuedeOperar(donacion.ComedorId))
+        {
+            return Result.Failure(
+                DonacionErrorCodes.SinPermiso,
+                "No tienes permisos para eliminar esta donacion.");
+        }
+
+        try
+        {
+            donacion.MarcarComoEliminada();
+        }
+        catch (DomainException ex)
+        {
+            return Result.Failure(DonacionErrorCodes.EstadoInvalido, ex.Message);
+        }
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            logger.LogWarning(ex, "Conflicto al eliminar donacion {DonacionId}", donacionId);
+
+            return Result.Failure(
+                DonacionErrorCodes.ConflictoConcurrente,
+                "Otro usuario actualizo esta donacion. Reintente.");
+        }
+
+        await InvalidarCacheAsync(cancellationToken);
+
+        return Result.Success();
+    }
+
+    private async Task<Result<DonacionResultDto>> EjecutarTransicionAsync(
+        Guid donacionId,
+        UsuarioOperacion usuario,
+        string accion,
+        Action<Donacion> transicion,
+        bool reversionDeStock,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(usuario);
+
+        var donacion = await dbContext
+            .Set<Donacion>()
+            .FirstOrDefaultAsync(
+                d => d.Id == donacionId && !d.IsDeleted,
+                cancellationToken);
+
+        if (donacion is null)
+        {
+            return Result<DonacionResultDto>.Failure(
+                DonacionErrorCodes.DonacionNoEncontrada,
+                "No existe la donacion solicitada.");
+        }
+
+        if (!usuario.PuedeOperar(donacion.ComedorId))
+        {
+            return Result<DonacionResultDto>.Failure(
+                DonacionErrorCodes.SinPermiso,
+                "No tienes permisos para operar sobre esta donacion.");
+        }
+
+        var estadoAnterior = donacion.Estado;
+        var moviaStock = donacion.StockIngresado;
+        inventarioResultado.Reiniciar();
+
+        try
+        {
+            transicion(donacion);
+
+            if (donacion.Estado == EstadoDonacion.Confirmada)
+            {
+                await publisher.Publish(
+                    CrearEventoConfirmacion(donacion),
+                    cancellationToken);
+            }
+            else if (reversionDeStock && moviaStock)
+            {
+                await publisher.Publish(
+                    new DonacionStockRevertido(
+                        donacion.Id,
+                        donacion.CodigoSeguimiento,
+                        donacion.InsumoId,
+                        donacion.ComedorId,
+                        donacion.InsumoNombre,
+                        donacion.UnidadMedida,
+                        donacion.Cantidad,
+                        donacion.MotivoCierre ?? "Sin motivo",
+                        donacion.FechaCierre ?? DateTimeOffset.UtcNow),
+                    cancellationToken);
+            }
+        }
+        catch (DomainException ex)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo {Accion} la donacion {DonacionId}. Estado actual: {Estado}",
+                accion,
+                donacionId,
+                estadoAnterior);
+
+            var codigo = reversionDeStock && ex.Message.Contains(
+                "stock suficiente",
+                StringComparison.OrdinalIgnoreCase)
+                ? DonacionErrorCodes.StockInsuficiente
+                : DonacionErrorCodes.EstadoInvalido;
+
+            return Result<DonacionResultDto>.Failure(codigo, ex.Message);
+        }
+
+        var fechaCambio = ObtenerFechaCambio(donacion);
+
+        dbContext.Set<DonacionHistorial>().Add(
+            DonacionHistorial.Crear(
+                donacion.Id,
+                estadoAnterior,
+                donacion.Estado,
+                donacion.MotivoCierre,
+                usuario.UsuarioId,
+                fechaCambio));
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Conflicto de concurrencia al {Accion} la donacion {DonacionId}",
+                accion,
+                donacionId);
+
+            return Result<DonacionResultDto>.Failure(
+                DonacionErrorCodes.ConflictoConcurrente,
+                "Otro usuario actualizo esta donacion al mismo tiempo. Reintente.");
+        }
+        catch (DbUpdateException ex) when (reversionDeStock)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo revertir el stock de la donacion {DonacionId}",
+                donacionId);
+
+            return Result<DonacionResultDto>.Failure(
+                DonacionErrorCodes.ErrorInterno,
+                "No se pudo revertir el stock de la donacion. Reintente.");
+        }
+
+        await InvalidarCacheAsync(cancellationToken);
+
+        var stock = inventarioResultado.HuboMovimiento
+            ? inventarioResultado.StockActual
+            : await ObtenerStockAsync(donacion.InsumoId, cancellationToken);
+
+        if (inventarioResultado.HuboMovimiento)
+        {
+            await NotificarStockAsync(cancellationToken);
+        }
+
+        logger.LogInformation(
+            "Donacion {Accion}. Codigo={Codigo}, EstadoAnterior={EstadoAnterior}, EstadoNuevo={EstadoNuevo}",
+            accion,
+            donacion.CodigoSeguimiento,
+            estadoAnterior,
+            donacion.Estado);
+
+        return Result<DonacionResultDto>.Success(Mapear(donacion, stock));
+    }
+
+    private static DonacionConfirmada CrearEventoConfirmacion(Donacion donacion) =>
+        new(
+            donacion.Id,
+            donacion.CodigoSeguimiento,
+            donacion.InsumoId,
+            donacion.ComedorId,
+            donacion.InsumoNombre,
+            donacion.UnidadMedida,
+            donacion.ComedorNombre,
+            donacion.Cantidad,
+            donacion.Donante,
+            donacion.PuntoRecojo,
+            donacion.FechaConfirmacion ?? DateTimeOffset.UtcNow);
+
+    private static DateTimeOffset ObtenerFechaCambio(Donacion donacion) =>
+        donacion.FechaCierre ??
+        donacion.FechaEntrega ??
+        donacion.FechaEnTransito ??
+        donacion.FechaConfirmacion ??
+        DateTimeOffset.UtcNow;
+
+    private async Task<decimal> ObtenerStockAsync(
+        Guid insumoId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext
+            .Set<Insumo>()
+            .AsNoTracking()
+            .Where(i => i.Id == insumoId)
+            .Select(i => i.StockActual)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static DonacionResultDto Mapear(Donacion donacion, decimal stock) =>
+        new()
+        {
+            DonacionId = donacion.Id,
+            CodigoSeguimiento = donacion.CodigoSeguimiento,
+            InsumoId = donacion.InsumoId,
+            InsumoNombre = donacion.InsumoNombre,
+            ComedorId = donacion.ComedorId,
+            ComedorNombre = donacion.ComedorNombre,
+            Cantidad = donacion.Cantidad,
+            UnidadMedida = donacion.UnidadMedida,
+            Donante = donacion.Donante,
+            PuntoRecojo = donacion.PuntoRecojo,
+            Estado = donacion.Estado.ToString(),
+            FechaDonacion = donacion.FechaDonacion,
+            FechaConfirmacion = donacion.FechaConfirmacion,
+            FechaEnTransito = donacion.FechaEnTransito,
+            FechaEntrega = donacion.FechaEntrega,
+            FechaCierre = donacion.FechaCierre,
+            MotivoCierre = donacion.MotivoCierre,
+            StockResultante = stock
+        };
+
+    private async Task NotificarStockAsync(CancellationToken cancellationToken)
+    {
+        var actualizacion = new StockActualizadoDto
+        {
+            InsumoId = inventarioResultado.InsumoId,
+            Nombre = inventarioResultado.InsumoNombre,
+            UnidadMedida = inventarioResultado.UnidadMedida,
+            StockActual = inventarioResultado.StockActual,
+            StockPrevio = inventarioResultado.StockPrevio,
+            MovimientoId = inventarioResultado.MovimientoId,
+            TipoMovimiento = inventarioResultado.TipoMovimiento,
+            Cantidad = inventarioResultado.Cantidad,
+            FechaHora = inventarioResultado.FechaHora
+        };
+
+        try
+        {
+            await notifier.NotificarStockActualizadoAsync(actualizacion, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(
+                ex,
+                "Stock persistido pero no se pudo notificar la actualizacion del insumo {Insumo}",
+                inventarioResultado.InsumoNombre);
+        }
+    }
+
+    private async Task InvalidarCacheAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await cacheService.RemoveByPrefixAsync(CacheDonaciones, cancellationToken);
+            await cacheService.RemoveByPrefixAsync(CacheKardex, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "No se pudo invalidar la cache de donaciones/kardex");
+        }
+    }
+
+    private static string FormatearErrores(ValidationResult validacion) =>
+        string.Join(" ", validacion.Errors.Select(error => error.ErrorMessage));
+
     private static string GenerarCodigoSeguimiento()
     {
         var numero = Random.Shared.Next(1, 100_000);
         return $"{PrefijoCodigo}-{DateTimeOffset.UtcNow.Year}-{numero:D5}";
     }
 
-    /// <summary>
-    /// Distingue la violacion del indice unico de una falla de base de datos cualquiera.
-    /// SQLite reporta la restriccion como "UNIQUE constraint failed".
-    /// </summary>
     private static bool EsViolacionDeUnico(DbUpdateException ex) =>
         ex.InnerException?.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) == true;
 }

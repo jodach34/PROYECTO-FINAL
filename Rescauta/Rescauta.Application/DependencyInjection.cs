@@ -8,6 +8,7 @@ using Rescauta.Application.Common;
 using Rescauta.Application.Features.Autenticacion;
 using Rescauta.Application.Features.Comedores;
 using Rescauta.Application.Features.Donaciones;
+using Rescauta.Application.Features.Donaciones.Events;
 using Rescauta.Application.Features.Kardex;
 using Rescauta.Application.Features.Usuarios;
 using Rescauta.Application.Interfaces;
@@ -44,6 +45,7 @@ public static class DependencyInjection
         // convencion como los handlers de MediatR) porque no son handlers: son servicios
         // con dependencias de Infrastructure, que MediatR no debe conocer.
         services.TryAddScoped<IComedorService, ComedorService>();
+        services.TryAddScoped<InventarioDonacionResultado>();
         services.TryAddScoped<IDonacionService, DonacionService>();
         services.TryAddScoped<IKardexService, KardexService>();
         services.TryAddScoped<IAutenticacionService, AutenticacionService>();

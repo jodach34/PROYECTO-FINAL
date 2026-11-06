@@ -90,6 +90,139 @@ public sealed class RescautaApiClient(
             cancellationToken);
     }
 
+    public async Task<Result<PagedResultApi<DonacionRegistrada>>> BuscarDonacionesAsync(
+        DonacionFiltroRequest filtro,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
+
+        var parametros = new List<string>
+        {
+            $"pagina={filtro.Pagina}",
+            $"tamanoPagina={filtro.TamanoPagina}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(filtro.Estado))
+        {
+            parametros.Add($"estado={Uri.EscapeDataString(filtro.Estado)}");
+        }
+
+        if (filtro.ComedorId is { } comedorId)
+        {
+            parametros.Add($"comedorId={comedorId}");
+        }
+
+        if (filtro.InsumoId is { } insumoId)
+        {
+            parametros.Add($"insumoId={insumoId}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Busqueda))
+        {
+            parametros.Add($"busqueda={Uri.EscapeDataString(filtro.Busqueda.Trim())}");
+        }
+
+        if (filtro.Desde is { } desde)
+        {
+            parametros.Add($"desde={Uri.EscapeDataString(desde.ToString("O"))}");
+        }
+
+        if (filtro.Hasta is { } hasta)
+        {
+            parametros.Add($"hasta={Uri.EscapeDataString(hasta.ToString("O"))}");
+        }
+
+        return await GetAsync<PagedResultApi<DonacionRegistrada>>(
+            $"/api/v1/donaciones/gestion?{string.Join("&", parametros)}",
+            cancellationToken);
+    }
+
+    public async Task<Result<DonacionRegistrada>> ObtenerDonacionAsync(
+        Guid donacionId,
+        CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<DonacionRegistrada>(
+            $"/api/v1/donaciones/{donacionId}",
+            cancellationToken);
+    }
+
+    public async Task<Result<IReadOnlyList<DonacionHistorialApi>>> ObtenerHistorialDonacionAsync(
+        Guid donacionId,
+        CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<IReadOnlyList<DonacionHistorialApi>>(
+            $"/api/v1/donaciones/{donacionId}/historial",
+            cancellationToken);
+    }
+
+    public async Task<Result<DonacionRegistrada>> ConfirmarDonacionAsync(
+        Guid donacionId,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendAsync<DonacionRegistrada>(
+            HttpMethod.Post,
+            $"/api/v1/donaciones/{donacionId}/confirmar",
+            null,
+            cancellationToken);
+    }
+
+    public async Task<Result<DonacionRegistrada>> MarcarDonacionEnTransitoAsync(
+        Guid donacionId,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendAsync<DonacionRegistrada>(
+            HttpMethod.Post,
+            $"/api/v1/donaciones/{donacionId}/en-transito",
+            null,
+            cancellationToken);
+    }
+
+    public async Task<Result<DonacionRegistrada>> EntregarDonacionAsync(
+        Guid donacionId,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendAsync<DonacionRegistrada>(
+            HttpMethod.Post,
+            $"/api/v1/donaciones/{donacionId}/entregar",
+            null,
+            cancellationToken);
+    }
+
+    public async Task<Result<DonacionRegistrada>> CancelarDonacionAsync(
+        Guid donacionId,
+        string motivo,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendAsync<DonacionRegistrada>(
+            HttpMethod.Post,
+            $"/api/v1/donaciones/{donacionId}/cancelar",
+            new MotivoDonacionRequest { Motivo = motivo },
+            cancellationToken);
+    }
+
+    public async Task<Result<DonacionRegistrada>> AnularDonacionAsync(
+        Guid donacionId,
+        string motivo,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendAsync<DonacionRegistrada>(
+            HttpMethod.Post,
+            $"/api/v1/donaciones/{donacionId}/anular",
+            new MotivoDonacionRequest { Motivo = motivo },
+            cancellationToken);
+    }
+
+    public async Task<Result> EliminarDonacionAsync(
+        Guid donacionId,
+        CancellationToken cancellationToken = default)
+    {
+        return await SendWithoutResponseAsync(
+            HttpMethod.Delete,
+            $"/api/v1/donaciones/{donacionId}",
+            null,
+            cancellationToken);
+    }
+
     public async Task<Result<DonacionRegistrada>> RegistrarDonacionAsync(
         DonacionRequest request,
         CancellationToken cancellationToken = default)

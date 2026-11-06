@@ -14,7 +14,7 @@
     <div>
         <p class="rs-eyebrow">Entrada de inventario</p>
         <h1 class="rs-page-title">Convierte un aporte en stock disponible.</h1>
-        <p class="rs-page-subtitle">Selecciona un insumo concreto de un comedor. Al guardar se genera un código de seguimiento para el donante.</p>
+        <p class="rs-page-subtitle">Selecciona un insumo concreto de un comedor. Al guardar se genera un código de seguimiento y la donación queda pendiente hasta que la coordinación confirme la recepción.</p>
     </div>
     <div class="flex flex-wrap gap-2">
         <a class="rs-btn rs-btn--secondary" asp-controller="Seguimiento" asp-action="Index">Buscar seguimiento</a>
@@ -29,7 +29,7 @@
             <path d="m5 12 4 4L19 6" />
         </svg>
         <span>
-            <strong>Donación registrada.</strong> Código de seguimiento:
+            <strong>Donación registrada y pendiente de confirmación.</strong> Código de seguimiento:
             <span class="rs-mono ml-1 rounded bg-white/60 px-1.5 py-0.5 font-black">@Model.Exito</span>
             <a class="ml-1 font-extrabold underline underline-offset-2" asp-controller="Seguimiento" asp-action="Index" asp-route-codigo="@Model.Exito">Seguir mi donación</a>
         </span>
@@ -53,7 +53,7 @@
         <div class="rs-panel__head">
             <div>
                 <h2 class="rs-panel__title">Datos de la donación</h2>
-                <p class="mt-1 text-[0.7rem] text-[#5f6f66]">La cantidad se suma al stock del insumo elegido.</p>
+                <p class="mt-1 text-[0.7rem] text-[#5f6f66]">La donación queda pendiente; el stock se suma cuando la coordinación confirma la recepción.</p>
             </div>
             <span class="rs-badge rs-badge--brand">Formulario real</span>
         </div>
@@ -98,12 +98,12 @@
 
                 <div class="rounded-xl border border-[#dce7df] bg-[#fbfdfb] p-3.5">
                     <p class="text-[0.68rem] font-bold leading-5 text-[#5f6f66]">
-                        Al confirmar, la donación se registra en la API y se genera un código con formato <span class="rs-mono text-[0.65rem]">DON-AÑO-NÚMERO</span>. Conserva ese código para el seguimiento.
+                        Al guardar, la donación se registra en estado pendiente y se genera un código con formato <span class="rs-mono text-[0.65rem]">DON-AÑO-NÚMERO</span>. Conserva ese código para el seguimiento. La coordinación confirmará la recepción antes de que el stock esté disponible.
                     </p>
                 </div>
 
                 <button class="rs-btn rs-btn--primary rs-btn--block" type="submit">
-                    Confirmar donación y generar código
+                    Registrar donación y generar código
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M5 12h14" />
                         <path d="m12 5 7 7-7 7" />
@@ -172,6 +172,7 @@
                                 <th>Donante</th>
                                 <th>Comedor</th>
                                 <th>Cantidad</th>
+                                <th>Estado</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -183,7 +184,8 @@
                                     </td>
                                     <td>@donacion.Donante</td>
                                     <td>@donacion.ComedorNombre</td>
-                                    <td class="whitespace-nowrap font-extrabold text-[#2b8a5b]">+@donacion.Cantidad @donacion.UnidadMedida</td>
+                                    <td class="whitespace-nowrap font-extrabold text-[#2b8a5b]">@donacion.Cantidad @donacion.UnidadMedida</td>
+                                    <td><span class="@Presentacion.ClaseEstadoDonacion(donacion.Estado)">@Presentacion.EtiquetaEstadoDonacion(donacion.Estado)</span></td>
                                 </tr>
                             }
                         </tbody>
