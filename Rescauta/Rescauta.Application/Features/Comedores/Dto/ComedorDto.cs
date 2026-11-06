@@ -58,6 +58,46 @@ public static class EstadoComedor
     };
 }
 
+/// <summary>Datos para registrar un nuevo comedor en la red.</summary>
+public sealed record CrearComedorDto
+{
+    public string Nombre { get; init; } = string.Empty;
+
+    public string Distrito { get; init; } = string.Empty;
+
+    public int RacionesDiarias { get; init; }
+
+    public string Direccion { get; init; } = string.Empty;
+
+    public string ContactoTelefono { get; init; } = string.Empty;
+
+    /// <summary>Posicion horizontal del pin en el mapa, en porcentaje (0-100).</summary>
+    public decimal MapaX { get; init; }
+
+    /// <summary>Posicion vertical del pin en el mapa, en porcentaje (0-100).</summary>
+    public decimal MapaY { get; init; }
+}
+
+/// <summary>Comedor recien registrado, con los datos persistidos.</summary>
+public sealed record ComedorResultDto
+{
+    public Guid Id { get; init; }
+
+    public string Nombre { get; init; } = string.Empty;
+
+    public string Distrito { get; init; } = string.Empty;
+
+    public string Direccion { get; init; } = string.Empty;
+
+    public string ContactoTelefono { get; init; } = string.Empty;
+
+    public int RacionesDiarias { get; init; }
+
+    public decimal MapaX { get; init; }
+
+    public decimal MapaY { get; init; }
+}
+
 /// <summary>
 /// Un comedor en la lista del mapa y del sidebar. Es la proyeccion mas ligera: el mapa
 /// pinta 5 de estos y no necesita el inventario completo de cada uno.

@@ -10,6 +10,7 @@ using Rescauta.Application.Features.Comedores;
 using Rescauta.Application.Features.Donaciones;
 using Rescauta.Application.Features.Donaciones.Events;
 using Rescauta.Application.Features.Kardex;
+using Rescauta.Application.Features.Reportes;
 using Rescauta.Application.Features.Usuarios;
 using Rescauta.Application.Interfaces;
 using Rescauta.Application.Services;
@@ -48,6 +49,7 @@ public static class DependencyInjection
         services.TryAddScoped<InventarioDonacionResultado>();
         services.TryAddScoped<IDonacionService, DonacionService>();
         services.TryAddScoped<IKardexService, KardexService>();
+        services.TryAddScoped<IReporteService, ReporteService>();
         services.TryAddScoped<IAutenticacionService, AutenticacionService>();
         services.TryAddScoped<IUsuarioAdminService, UsuarioAdminService>();
 

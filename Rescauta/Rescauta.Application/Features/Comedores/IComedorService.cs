@@ -5,16 +5,24 @@ using Rescauta.Application.Features.Kardex;
 namespace Rescauta.Application.Features.Comedores;
 
 /// <summary>
-/// Casos de uso de lectura del mapa de comedores.
+/// Casos de uso del mapa de comedores.
 ///
-/// Todos son de solo lectura: el modulo Comedores no escribe en el dominio. Lo que cambia el
-/// inventario es el modulo Kardex (RegistrarMovimientoAsync) y lo que registra una ~
-/// donacion es el de Donaciones. Esta interfaz existe para que el mapa y el panel tengan una
-/// unica puerta de entrada a esos datos, en vez de que cada controller arraste su propio
-/// LINQ contra <c>IAppDbContext</c>.
+/// El modulo Comedores solo escribe para dar de alta un comedor. Lo que cambia el inventario
+/// es el modulo Kardex (RegistrarMovimientoAsync) y lo que registra una donacion es el de
+/// Donaciones. Esta interfaz existe para que el mapa, el panel y el alta tengan una unica
+/// puerta de entrada a esos datos, en vez de que cada controller arrastre su propio LINQ
+/// contra <c>IAppDbContext</c>.
 /// </summary>
 public interface IComedorService
 {
+    /// <summary>
+    /// Registra un comedor nuevo. El id, el estado de abastecimiento y el inventario se
+    /// derivan de la entidad; el cliente solo manda los datos de catalogo.
+    /// </summary>
+    Task<Result<ComedorResultDto>> CrearAsync(
+        CrearComedorDto comedor,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Lista los comedores con su estado de abastecimiento, del mas urgente al menos
     /// urgente. Es lo que pintan el mapa y el sidebar.
