@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    CAPA 1 - DOMINIO
+    Reglas de dependencia:
+      * No referencia NINGUN otro proyecto de la solución.
+      * No referencia EF Core, ni Redis, ni ASP.NET Core, ni AutoMapper, ni MediatR.
+      * Solo Microsoft.* BCL.
+    Aqui vive el 100% de la lógica de negocio.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Rescauta.Domain</RootNamespace>
+  </PropertyGroup>
+
+</Project>

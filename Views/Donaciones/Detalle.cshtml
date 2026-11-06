@@ -1,0 +1,214 @@
+@model DonacionDetalleViewModel
+@{
+    Layout = "_AppLayout";
+    ViewData["Title"] = "Detalle de donación";
+    ViewData["AppSection"] = "Banco de alimentos";
+    ViewData["AppTitle"] = "Detalle de donación";
+
+    var donacion = Model.Donacion;
+    var estado = donacion?.Estado ?? string.Empty;
+    var puedeCerrar = donacion is not null && Presentacion.PuedeCerrarDonacion(estado);
+    var puedeEliminar = donacion is not null && Presentacion.PuedeEliminarDonacion(estado);
+}
+
+<div class="rs-page-head">
+    <div>
+        <p class="rs-eyebrow">Trazabilidad</p>
+        <h1 class="rs-page-title">@(donacion?.CodigoSeguimiento ?? "Donación")</h1>
+        <p class="rs-page-subtitle">Consulta el detalle, mueve el estado y deja registrado el motivo de cada cierre.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+        <a class="rs-btn rs-btn--secondary" asp-action="Index">Volver al listado</a>
+        @if (donacion is not null)
+        {
+            <a class="rs-btn rs-btn--secondary" asp-controller="Seguimiento" asp-action="Index" asp-route-codigo="@donacion.CodigoSeguimiento">Ver seguimiento público</a>
+        }
+    </div>
+</div>
+
+@if (Model.Exito is not null)
+{
+    <div class="rs-alert rs-alert--ok mb-4" role="status">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+            <path d="m5 12 4 4L19 6" />
+        </svg>
+        <span>@Model.Exito</span>
+    </div>
+}
+
+@if (Model.Error is not null)
+{
+    <div class="rs-alert rs-alert--error mb-4" role="alert">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+            <path d="M10.3 4.7 2.9 18a1.7 1.7 0 0 0 1.5 2.5h15.2a1.7 1.7 0 0 0 1.5-2.5L13.7 4.7a1.9 1.9 0 0 0-3.4 0Z" />
+        </svg>
+        <span>@Model.Error</span>
+    </div>
+}
+
+@if (donacion is not null)
+{
+    <div class="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <section class="rs-panel">
+            <div class="rs-panel__head">
+                <div>
+                    <h2 class="rs-panel__title">Datos de la donación</h2>
+                    <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Registrada el @donacion.FechaDonacion.ToLocalTime().ToString("dd/MM/yyyy 'a las' HH:mm")</p>
+                </div>
+                <span class="@Presentacion.ClaseEstadoDonacion(estado)">@Presentacion.EtiquetaEstadoDonacion(estado)</span>
+            </div>
+            <div class="rs-panel__body">
+                <dl class="grid gap-2.5 sm:grid-cols-2">
+                    <div class="rounded-xl bg-[#f5f7f4] p-3.5">
+                        <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Donante</dt>
+                        <dd class="mt-1 font-extrabold">@donacion.Donante</dd>
+                    </div>
+                    <div class="rounded-xl bg-[#f5f7f4] p-3.5">
+                        <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Comedor destino</dt>
+                        <dd class="mt-1 font-extrabold">@donacion.ComedorNombre</dd>
+                    </div>
+                    <div class="rounded-xl bg-[#f5f7f4] p-3.5">
+                        <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Insumo</dt>
+                        <dd class="mt-1 font-extrabold">@donacion.InsumoNombre</dd>
+                    </div>
+                    <div class="rounded-xl bg-[#f5f7f4] p-3.5">
+                        <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Cantidad</dt>
+                        <dd class="mt-1 font-extrabold">@donacion.Cantidad @donacion.UnidadMedida</dd>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(donacion.PuntoRecojo))
+                    {
+                        <div class="rounded-xl bg-[#f5f7f4] p-3.5 sm:col-span-2">
+                            <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Punto de recojo</dt>
+                            <dd class="mt-1 font-extrabold">@donacion.PuntoRecojo</dd>
+                        </div>
+                    }
+                    <div class="rounded-xl border border-[#dce7df] bg-[#fbfdfb] p-3.5 sm:col-span-2">
+                        <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Stock actual del insumo</dt>
+                        <dd class="mt-1 font-extrabold">
+                            @donacion.StockResultante.ToString("0.##") @donacion.UnidadMedida
+                            <span class="text-[0.68rem] font-semibold text-[#5f6f66]">en la despensa del comedor</span>
+                        </dd>
+                    </div>
+                </dl>
+
+                @if (!string.IsNullOrWhiteSpace(donacion.MotivoCierre))
+                {
+                    <div class="rs-alert rs-alert--warn mt-4" role="note">
+                        <span><strong>Motivo de cierre.</strong> @donacion.MotivoCierre</span>
+                    </div>
+                }
+
+                <div class="mt-5 flex flex-wrap gap-2">
+                    @if (Presentacion.PuedeConfirmarDonacion(estado))
+                    {
+                        <form method="post" asp-action="Confirmar">
+                            <input type="hidden" name="id" value="@donacion.DonacionId" />
+                            <button class="rs-btn rs-btn--primary" type="submit">Confirmar recepción e ingresar stock</button>
+                        </form>
+                    }
+                    else if (Presentacion.PuedePonerEnTransito(estado))
+                    {
+                        <form method="post" asp-action="EnTransito">
+                            <input type="hidden" name="id" value="@donacion.DonacionId" />
+                            <button class="rs-btn rs-btn--primary" type="submit">Marcar en tránsito</button>
+                        </form>
+                    }
+                    else if (Presentacion.PuedeEntregarDonacion(estado))
+                    {
+                        <form method="post" asp-action="Entregar">
+                            <input type="hidden" name="id" value="@donacion.DonacionId" />
+                            <button class="rs-btn rs-btn--primary" type="submit">Marcar como entregada</button>
+                        </form>
+                    }
+                </div>
+            </div>
+        </section>
+
+        <div class="space-y-4">
+            @if (puedeCerrar)
+            {
+                <section class="rs-panel">
+                    <div class="rs-panel__head">
+                        <div>
+                            <h2 class="rs-panel__title">Cerrar la donación</h2>
+                            <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Si ya ingresó stock, la reversión se hace en el kardex.</p>
+                        </div>
+                    </div>
+                    <div class="rs-panel__body grid gap-4">
+                        <form method="post" asp-action="Cancelar" class="grid gap-2">
+                            <input type="hidden" name="id" value="@donacion.DonacionId" />
+                            <label class="rs-label" for="motivo-cancelar">Motivo de cancelación</label>
+                            <textarea class="rs-input" id="motivo-cancelar" name="motivo" rows="2" required placeholder="Ej. El donante no pudo entregar los insumos."></textarea>
+                            <button class="rs-btn rs-btn--secondary rs-btn--sm" type="submit">Cancelar donación</button>
+                        </form>
+
+                        <form method="post" asp-action="Anular" class="grid gap-2 border-t border-[#dce7df] pt-4">
+                            <input type="hidden" name="id" value="@donacion.DonacionId" />
+                            <label class="rs-label" for="motivo-anular">Motivo de anulación</label>
+                            <textarea class="rs-input" id="motivo-anular" name="motivo" rows="2" required placeholder="Ej. Los insumos no cumplen las condiciones sanitarias."></textarea>
+                            <button class="rs-btn rs-btn--ghost rs-btn--sm" type="submit">Anular donación</button>
+                        </form>
+                    </div>
+                </section>
+            }
+
+            @if (puedeEliminar)
+            {
+                <section class="rs-panel">
+                    <div class="rs-panel__head">
+                        <div>
+                            <h2 class="rs-panel__title">Eliminar del listado</h2>
+                            <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Borrado lógico. Solo para donaciones sin stock comprometido.</p>
+                        </div>
+                    </div>
+                    <div class="rs-panel__body">
+                        <form method="post" asp-action="Eliminar" onsubmit="return confirm('¿Eliminar esta donación del listado?');">
+                            <input type="hidden" name="id" value="@donacion.DonacionId" />
+                            <button class="rs-btn rs-btn--ghost rs-btn--sm" type="submit">Eliminar donación</button>
+                        </form>
+                    </div>
+                </section>
+            }
+
+            <section class="rs-panel">
+                <div class="rs-panel__head">
+                    <div>
+                        <h2 class="rs-panel__title">Historial de estados</h2>
+                        <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Cada transición queda auditada con fecha y usuario.</p>
+                    </div>
+                </div>
+                <div class="rs-panel__body">
+                    @if (Model.Historial.Count == 0)
+                    {
+                        <p class="text-[0.78rem] leading-6 text-[#5f6f66]">Todavía no hay transiciones registradas.</p>
+                    }
+                    else
+                    {
+                        <ol class="rs-timeline">
+                            @foreach (var item in Model.Historial)
+                            {
+                                <li class="rs-timeline__item is-done">
+                                    <span class="rs-timeline__marker">•</span>
+                                    <div>
+                                        <p class="rs-timeline__title">
+                                            @Presentacion.EtiquetaEstadoDonacion(item.EstadoAnterior)
+                                            <span class="font-semibold text-[#5f6f66]">→</span>
+                                            @Presentacion.EtiquetaEstadoDonacion(item.EstadoNuevo)
+                                        </p>
+                                        <p class="rs-timeline__detail">@item.Fecha.ToLocalTime().ToString("dd/MM/yyyy 'a las' HH:mm")</p>
+                                        @if (!string.IsNullOrWhiteSpace(item.Motivo))
+                                        {
+                                            <p class="mt-1 text-[0.7rem] font-semibold text-[#5f6f66]">@item.Motivo</p>
+                                        }
+                                    </div>
+                                </li>
+                            }
+                        </ol>
+                    }
+                </div>
+            </section>
+        </div>
+    </div>
+}

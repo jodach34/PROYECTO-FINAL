@@ -1,0 +1,189 @@
+@{
+    var path = Context.Request.Path.Value ?? "/";
+    var appSection = (ViewData["AppSection"] as string) ?? "Panel operativo";
+    var pageTitle = (ViewData["AppTitle"] as string) ?? "Resumen";
+    var isPanel = path.StartsWith("/ControlPanel", StringComparison.OrdinalIgnoreCase);
+    var isFoodBank = path.StartsWith("/FoodBank", StringComparison.OrdinalIgnoreCase);
+    var isDonations = path.StartsWith("/Donaciones", StringComparison.OrdinalIgnoreCase);
+    var isDirectory = path.StartsWith("/Comedores", StringComparison.OrdinalIgnoreCase);
+    var isInventory = path.StartsWith("/Inventario", StringComparison.OrdinalIgnoreCase);
+    var isTracking = path.StartsWith("/Seguimiento", StringComparison.OrdinalIgnoreCase);
+    var isAccount = path.StartsWith("/Cuenta", StringComparison.OrdinalIgnoreCase);
+    var isAdmin = path.StartsWith("/AdminUsuarios", StringComparison.OrdinalIgnoreCase);
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    @await Html.PartialAsync("_RescautaHead")
+    @await RenderSectionAsync("Head", false)
+</head>
+<body class="rs-app-body min-h-screen text-[#13251c] antialiased">
+    <a class="rs-skip-link" href="#contenido-app">Saltar al contenido</a>
+    <div class="rs-app-shell">
+        <aside class="rs-sidebar" id="sidebar-rescauta" data-sidebar aria-label="Navegación de la plataforma">
+            <a class="rs-brand rs-brand--inverse" asp-controller="Home" asp-action="Index">
+                <span class="rs-brand__mark" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 12h16" />
+                        <path d="M5 12a7 7 0 0 0 14 0" />
+                        <path d="M8 8c1.2-2.2 2.6-3.3 4-3.3S14.8 5.8 16 8" />
+                        <path d="M9 16h6" />
+                    </svg>
+                </span>
+                <span>
+                    <span class="rs-brand__name">Rescauta</span>
+                    <span class="rs-brand__tag">Plataforma solidaria</span>
+                </span>
+            </a>
+
+            <div class="rs-sidebar__section">
+                <p class="rs-sidebar__label">Operación</p>
+                <nav class="rs-sidebar__nav">
+                    <a class="rs-sidebar__link @(isPanel ? "is-active" : null)" asp-controller="ControlPanel" asp-action="Index">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                        </svg>
+                        Resumen
+                    </a>
+                    <a class="rs-sidebar__link @(isDirectory ? "is-active" : null)" asp-controller="Comedores" asp-action="Index">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 20h18" />
+                            <path d="M5 20V9l7-5 7 5v11" />
+                            <path d="M9 20v-6h6v6" />
+                        </svg>
+                        Comedores
+                    </a>
+                    <a class="rs-sidebar__link @(isFoodBank ? "is-active" : null)" asp-controller="FoodBank" asp-action="Index">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10Z" />
+                        </svg>
+                        Registrar donación
+                    </a>
+                    <a class="rs-sidebar__link @(isDonations ? "is-active" : null)" asp-controller="Donaciones" asp-action="Index">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M8 6h13" />
+                            <path d="M8 12h13" />
+                            <path d="M8 18h13" />
+                            <path d="M3 6h.01" />
+                            <path d="M3 12h.01" />
+                            <path d="M3 18h.01" />
+                        </svg>
+                        Gestionar donaciones
+                    </a>
+                    <a class="rs-sidebar__link @(isTracking ? "is-active" : null)" asp-controller="Seguimiento" asp-action="Index">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="11" cy="11" r="7" />
+                            <path d="m20 20-3.5-3.5" />
+                        </svg>
+                        Seguimiento
+                    </a>
+                    @if (User.IsInRole("Administrador"))
+                    {
+                        <a class="rs-sidebar__link @(isAdmin ? "is-active" : null)" asp-controller="AdminUsuarios" asp-action="Index">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <circle cx="9" cy="8" r="3" />
+                                <path d="M3 20c0-3 2.7-5 6-5s6 2 6 5" />
+                                <path d="M17 8h4" />
+                                <path d="M17 12h4" />
+                                <path d="M17 16h4" />
+                            </svg>
+                            Usuarios y permisos
+                        </a>
+                    }
+                    @if (User.IsInRole("Operador") || User.IsInRole("Coordinador") || User.IsInRole("Administrador"))
+                    {
+                        <a class="rs-sidebar__link @(isInventory ? "is-active" : null)" asp-controller="Inventario" asp-action="Index">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M3 7h18" />
+                                <path d="M6 7v13h12V7" />
+                                <path d="M9 7V4h6v3" />
+                            </svg>
+                            Inventario
+                        </a>
+                    }
+                    <span class="rs-sidebar__link is-disabled" aria-disabled="true">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M4 19V5" />
+                            <path d="M4 19h16" />
+                            <path d="m7 15 4-4 3 2 5-6" />
+                        </svg>
+                        Reportes
+                        <span class="rs-sidebar__soon">pronto</span>
+                    </span>
+                </nav>
+            </div>
+
+            <div class="rs-sidebar__section">
+                <p class="rs-sidebar__label">Sitio público</p>
+                <nav class="rs-sidebar__nav">
+                    <a class="rs-sidebar__link" asp-controller="Home" asp-action="Index">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 11.5 12 4l9 7.5" />
+                            <path d="M5 10v10h14V10" />
+                        </svg>
+                        Volver al inicio
+                    </a>
+                    <a class="rs-sidebar__link @(isAccount ? "is-active" : null)" asp-controller="Cuenta" asp-action="MiCuenta">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="8" r="3.5" />
+                            <path d="M5 20c1.2-3.5 3.6-5 7-5s5.8 1.5 7 5" />
+                        </svg>
+                        Mi cuenta
+                    </a>
+                </nav>
+            </div>
+
+            <div class="rs-sidebar__footer">
+                <p class="rs-app-nav-footer">
+                    Sesión de @User.Identity?.Name · @(User.FindFirst("estado")?.Value ?? "Activo")
+                </p>
+                <form method="post" asp-controller="Cuenta" asp-action="Logout" class="mt-2">
+                    <button class="rs-btn rs-btn--ghost rs-btn--sm w-full" type="submit">Cerrar sesión</button>
+                </form>
+            </div>
+        </aside>
+
+        <div class="rs-sidebar__backdrop" data-sidebar-backdrop></div>
+
+        <div class="rs-app-main">
+            <header class="rs-topbar">
+                <div class="flex min-w-0 items-center gap-2.5">
+                    <button class="rs-sidebar-toggle" type="button" data-sidebar-toggle aria-controls="sidebar-rescauta" aria-expanded="false" aria-label="Abrir menú de la plataforma">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                            <path d="M4 7h16M4 12h16M4 17h16" />
+                        </svg>
+                    </button>
+                    <div class="min-w-0">
+                        <p class="rs-topbar__eyebrow truncate">@appSection</p>
+                        <p class="rs-topbar__title truncate">@pageTitle</p>
+                    </div>
+                </div>
+
+                <div class="rs-topbar__actions">
+                    <a class="rs-btn rs-btn--ghost rs-btn--sm" asp-controller="Cuenta" asp-action="MiCuenta">
+                        @User.Identity?.Name
+                    </a>
+                    <a class="rs-btn rs-btn--secondary rs-btn--sm" asp-controller="Home" asp-action="Index">
+                        <span class="hidden sm:inline">Ver sitio</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M14 4h6v6" />
+                            <path d="M20 4 11 13" />
+                            <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+                        </svg>
+                    </a>
+                </div>
+            </header>
+
+            <main id="contenido-app" class="rs-app-content">
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+
+    <script src="~/js/rescauta.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", false)
+</body>
+</html>

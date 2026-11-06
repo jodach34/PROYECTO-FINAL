@@ -1,0 +1,205 @@
+@model SeguimientoViewModel
+@{
+    Layout = "_PublicLayout";
+    var donacion = Model.Donacion;
+    var estado = donacion?.Estado ?? string.Empty;
+
+    var pasos = new[]
+    {
+        (Clave: "Pendiente", Etiqueta: "Registrada", Detalle: "Recibimos tu donación y generamos el código."),
+        (Clave: "Confirmada", Etiqueta: "Confirmada", Detalle: "La coordinación confirmó la recepción."),
+        (Clave: "EnTransito", Etiqueta: "En camino", Detalle: "Los insumos van hacia el comedor."),
+        (Clave: "Entregada", Etiqueta: "Entregada", Detalle: "El comedor recibió la donación.")
+    };
+
+    var pasoActual = Array.FindIndex(pasos, p => string.Equals(p.Clave, estado, StringComparison.OrdinalIgnoreCase));
+    var esCerrada = estado is "Cancelada" or "Anulada";
+    var claseEstado = estado switch
+    {
+        "Entregada" => "rs-badge rs-badge--ok",
+        "Cancelada" or "Anulada" => "rs-badge rs-badge--critico",
+        "Confirmada" or "EnTransito" => "rs-badge rs-badge--brand",
+        _ => "rs-badge rs-badge--alerta"
+    };
+    var etiquetaEstado = estado switch
+    {
+        "Pendiente" => "Pendiente de recepción",
+        "EnTransito" => "En camino",
+        "Entregada" => "Entregada",
+        "Confirmada" => "Confirmada",
+        "Cancelada" => "Cancelada",
+        "Anulada" => "Anulada",
+        _ when string.IsNullOrWhiteSpace(estado) => "Sin estado",
+        _ => estado
+    };
+}
+
+<section class="border-b border-[#dce7df] bg-[#fbfdf9]">
+    <div class="rs-container py-12 sm:py-16">
+        <div class="mx-auto max-w-3xl text-center">
+            <p class="rs-eyebrow justify-center">Transparencia para donantes</p>
+            <h1 class="rs-title">Tu donación, paso a paso.</h1>
+            <p class="rs-lead mx-auto text-center">
+                Ingresa el código que recibiste al registrar tu aporte. No necesitas cuenta ni contraseña, y solo verás la donación asociada a ese código.
+            </p>
+        </div>
+
+        <div class="rs-card mx-auto mt-8 max-w-2xl p-4 sm:p-5">
+            <form method="get" asp-controller="Seguimiento" asp-action="Index" class="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                <div>
+                    <label class="rs-label" for="codigo">Código de seguimiento</label>
+                    <input class="rs-input rs-mono uppercase tracking-wide" id="codigo" name="codigo" type="text" value="@Model.Codigo" placeholder="DON-2026-00042" autocomplete="off" required />
+                </div>
+                <button class="rs-btn rs-btn--primary" type="submit">
+                    Buscar donación
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m20 20-3.5-3.5" />
+                    </svg>
+                </button>
+            </form>
+            <p class="rs-help">El código aparece en la confirmación del registro de donaciones. Ejemplo: <span class="rs-mono">DON-2026-00042</span>.</p>
+        </div>
+    </div>
+</section>
+
+<section class="rs-section--tight">
+    <div class="rs-container">
+        @if (Model.Error is not null)
+        {
+            <div class="rs-alert rs-alert--warn mx-auto mb-5 max-w-2xl" role="alert">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+                    <path d="M12 9v4" />
+                    <path d="M12 17h.01" />
+                    <path d="M10.3 4.7 2.9 18a1.7 1.7 0 0 0 1.5 2.5h15.2a1.7 1.7 0 0 0 1.5-2.5L13.7 4.7a1.9 1.9 0 0 0-3.4 0Z" />
+                </svg>
+                <span><strong>No encontramos esa donación.</strong> @Model.Error Revisa el código y vuelve a intentarlo.</span>
+            </div>
+        }
+
+        @if (donacion is not null)
+        {
+            <div class="rs-panel mx-auto max-w-4xl overflow-hidden">
+                <div class="border-b border-[#dce7df] p-5 sm:p-6">
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <p class="text-[0.62rem] font-black uppercase tracking-[0.14em] text-[#5f6f66]">Código de seguimiento</p>
+                            <p class="rs-mono mt-1 font-display text-2xl font-extrabold tracking-[-0.03em]">@donacion.CodigoSeguimiento</p>
+                            <p class="mt-1 text-[0.72rem] font-semibold text-[#5f6f66]">Registrada el @donacion.FechaDonacion.ToLocalTime().ToString("dd/MM/yyyy 'a las' HH:mm")</p>
+                        </div>
+                        <span class="@claseEstado">@etiquetaEstado</span>
+                    </div>
+                </div>
+
+                <div class="grid gap-6 p-5 sm:p-6 md:grid-cols-2 md:gap-8">
+                    <div>
+                        <h2 class="font-display text-base font-extrabold tracking-[-0.02em]">Detalle de tu aporte</h2>
+                        <dl class="mt-4 grid grid-cols-2 gap-2.5 text-[0.76rem]">
+                            <div class="rounded-xl bg-[#f5f7f4] p-3.5">
+                                <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Donante</dt>
+                                <dd class="mt-1 font-extrabold">@donacion.Donante</dd>
+                            </div>
+                            <div class="rounded-xl bg-[#f5f7f4] p-3.5">
+                                <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Comedor destino</dt>
+                                <dd class="mt-1 font-extrabold">@donacion.ComedorNombre</dd>
+                            </div>
+                            <div class="rounded-xl bg-[#f5f7f4] p-3.5">
+                                <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Insumo</dt>
+                                <dd class="mt-1 font-extrabold">@donacion.InsumoNombre</dd>
+                            </div>
+                            <div class="rounded-xl bg-[#f5f7f4] p-3.5">
+                                <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Cantidad</dt>
+                                <dd class="mt-1 font-extrabold">@donacion.Cantidad @donacion.UnidadMedida</dd>
+                            </div>
+                            <div class="col-span-2 rounded-xl border border-[#dce7df] bg-[#fbfdfb] p-3.5">
+                                <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Stock actual del insumo</dt>
+                                <dd class="mt-1 font-extrabold">
+                                    @donacion.StockResultante.ToString("0.##") @donacion.UnidadMedida
+                                    <span class="text-[0.68rem] font-semibold text-[#5f6f66]">en la despensa del comedor</span>
+                                </dd>
+                                <p class="mt-1 text-[0.64rem] font-semibold text-[#5f6f66]">La donación suma stock cuando la coordinación confirma la recepción.</p>
+                            </div>
+                        </dl>
+
+                        @if (!string.IsNullOrWhiteSpace(donacion.MotivoCierre))
+                        {
+                            <div class="rs-alert rs-alert--warn mt-3" role="note">
+                                <span>
+                                    <strong>Motivo de cierre.</strong> @donacion.MotivoCierre
+                                    @if (donacion.FechaCierre is not null)
+                                    {
+                                        <span class="block text-[0.68rem] font-semibold">@donacion.FechaCierre.Value.ToLocalTime().ToString("dd/MM/yyyy 'a las' HH:mm")</span>
+                                    }
+                                </span>
+                            </div>
+                        }
+                    </div>
+
+                    <div>
+                        <h2 class="font-display text-base font-extrabold tracking-[-0.02em]">Estado del proceso</h2>
+                        <p class="mt-1 text-[0.72rem] text-[#5f6f66]">Así avanza tu donación hasta llegar al comedor.</p>
+
+                        @if (esCerrada)
+                        {
+                            <div class="rs-alert rs-alert--warn mt-5" role="note">
+                                <span>Esta donación fue @etiquetaEstado.ToLowerInvariant() y no continuó su recorrido hacia el comedor.</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <ol class="rs-timeline mt-5">
+                                @for (var i = 0; i < pasos.Length; i++)
+                                {
+                                    var paso = pasos[i];
+                                    var completado = pasoActual >= i;
+                                    var esActual = pasoActual == i;
+                                    <li class="rs-timeline__item @(completado ? "is-done" : null) @(esActual ? "is-current" : null)">
+                                        <span class="rs-timeline__marker">@(i + 1)</span>
+                                        <div>
+                                            <p class="rs-timeline__title @(esActual ? "text-[#1b6b4a]" : null)">@paso.Etiqueta</p>
+                                            <p class="rs-timeline__detail">@paso.Detalle</p>
+                                        </div>
+                                    </li>
+                                }
+                            </ol>
+                        }
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[#dce7df] bg-[#fbfdfb] px-5 py-4 sm:px-6">
+                    <p class="text-[0.68rem] leading-5 text-[#5f6f66]">El estado lo actualiza la coordinación cuando confirma y entrega los insumos.</p>
+                    <div class="flex flex-wrap gap-2">
+                        <a class="rs-btn rs-btn--primary rs-btn--sm" asp-controller="Home" asp-action="Donaciones">Hacer otra donación</a>
+                        <a class="rs-btn rs-btn--secondary rs-btn--sm" asp-controller="Comedores" asp-action="Index">Ver comedores</a>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (Model.Error is null)
+        {
+            <div class="mx-auto grid max-w-4xl gap-4 md:grid-cols-3">
+                <article class="rs-feature">
+                    <span class="rs-badge rs-badge--brand">Paso 1</span>
+                    <h2 class="mt-4">Dona un insumo</h2>
+                    <p>Registra tu aporte en el formulario y elige el comedor y el insumo que quieres apoyar.</p>
+                </article>
+                <article class="rs-feature">
+                    <span class="rs-badge rs-badge--brand">Paso 2</span>
+                    <h2 class="mt-4">Recibe tu código</h2>
+                    <p>Al confirmar, la plataforma genera un código único con formato <span class="rs-mono text-[0.66rem]">DON-2026-00042</span>.</p>
+                </article>
+                <article class="rs-feature">
+                    <span class="rs-badge rs-badge--brand">Paso 3</span>
+                    <h2 class="mt-4">Consulta el estado</h2>
+                    <p>Vuelve con tu código para saber si la donación fue confirmada, está en camino o ya llegó.</p>
+                </article>
+            </div>
+
+            <div class="rs-card rs-card--soft mx-auto mt-5 max-w-2xl p-5 text-center">
+                <p class="text-sm font-extrabold">¿Todavía no has donado?</p>
+                <p class="mt-1 text-[0.78rem] leading-6 text-[#5f6f66]">Puedes registrar un aporte en menos de un minuto y recibir tu código de seguimiento al instante.</p>
+                <a class="rs-btn rs-btn--primary mt-4" asp-controller="Home" asp-action="Donaciones">Ir a donaciones</a>
+            </div>
+        }
+    </div>
+</section>

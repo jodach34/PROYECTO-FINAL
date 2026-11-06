@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    @await Html.PartialAsync("_RescautaHead")
+    @await RenderSectionAsync("Head", false)
+</head>
+<body class="rs-public-body min-h-screen bg-[#f5f7f4] text-[#13251c] antialiased">
+    <a class="rs-skip-link" href="#contenido">Saltar al contenido</a>
+    @await Html.PartialAsync("_RescautaNav")
+    <main id="contenido">
+        @RenderBody()
+    </main>
+    @await Html.PartialAsync("_RescautaFooter")
+    <script src="~/js/rescauta.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", false)
+</body>
+</html>

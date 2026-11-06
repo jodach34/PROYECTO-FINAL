@@ -1,0 +1,17 @@
+@Rescauta.Api_HostAddress = http://localhost:5266
+
+### Metadatos de la instancia
+GET {{Rescauta.Api_HostAddress}}/api/v1/system/info
+Accept: application/json
+
+### Readiness (comprueba base de datos y cache)
+GET {{Rescauta.Api_HostAddress}}/api/v1/system/readiness
+Accept: application/json
+
+### Health checks (formato JSON, para contenedores)
+GET {{Rescauta.Api_HostAddress}}/health
+Accept: application/json
+
+### Documentacion OpenAPI
+GET {{Rescauta.Api_HostAddress}}/swagger/v1/swagger.json
+Accept: application/json

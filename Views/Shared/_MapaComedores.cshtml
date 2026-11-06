@@ -1,0 +1,58 @@
+@model MapaViewModel
+@using System.Text.Json
+@{
+    var mapCompact = ViewData["MapCompact"] as bool? == true;
+
+    // Solo se pintan comedores con una coordenada GPS util. Los que todavia no la tienen
+    // (Latitud y Longitud en cero) se omiten para no dibujar un pin en el oceano.
+    var marcadores = Model.Comedores
+        .Where(c => c.Latitud is >= -90m and <= 90m
+                    && c.Longitud is >= -180m and <= 180m
+                    && !(c.Latitud == 0m && c.Longitud == 0m))
+        .Select(c => new
+        {
+            id = c.Id,
+            nombre = c.Nombre,
+            distrito = c.Distrito,
+            estado = c.Estado,
+            etiqueta = Presentacion.EtiquetaEstado(c.Estado),
+            color = Presentacion.ColorEstado(c.Estado),
+            raciones = c.RacionesDiarias,
+            porcentaje = c.PorcentajeAbastecimiento,
+            lat = c.Latitud,
+            lng = c.Longitud,
+            url = Url.Action("Detalle", "Comedores", new { id = c.Id })
+        })
+        .ToList();
+}
+<div class="rs-map @(mapCompact ? "rs-map--compact" : null)" data-map>
+    <div class="rs-map__viewport">
+        <div class="rs-map__canvas" data-map-canvas role="application" aria-label="Mapa GPS de los comedores de la red"></div>
+
+        <script type="application/json" data-map-data>@Html.Raw(JsonSerializer.Serialize(marcadores))</script>
+
+        <div class="rs-map__controls" aria-label="Controles del mapa">
+            <button class="rs-map__control" type="button" data-map-zoom-in aria-label="Acercar mapa">+</button>
+            <button class="rs-map__control" type="button" data-map-zoom-out aria-label="Alejar mapa">−</button>
+            <button class="rs-map__control" type="button" data-map-reset aria-label="Restablecer mapa">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 12a9 9 0 1 0 3-6.7" />
+                    <path d="M3 4v5h5" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="rs-map__legend" aria-label="Leyenda del mapa">
+            <p class="rs-map__legend-title">Estado de abastecimiento</p>
+            <p class="rs-map__legend-row"><span class="rs-map__dot" style="background:#2b8a5b"></span> Abastecido</p>
+            <p class="rs-map__legend-row"><span class="rs-map__dot" style="background:#b46b10"></span> Alerta</p>
+            <p class="rs-map__legend-row"><span class="rs-map__dot" style="background:#b33a48"></span> Emergencia</p>
+            <p class="rs-map__legend-row"><span class="rs-map__dot" style="background:#8b9a91"></span> Sin datos</p>
+        </div>
+
+        <span class="rs-map__zoom-value" data-map-zoom>100%</span>
+    </div>
+    <p class="rs-map__note">
+        <strong>Mapa GPS:</strong> cada marcador corresponde a la ubicación real de un comedor registrado. Selecciona un punto para ver su información y abrir su ficha.
+    </p>
+</div>

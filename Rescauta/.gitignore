@@ -1,0 +1,53 @@
+## .NET
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+.idea/
+*.swp
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+!**/packages/build/
+.nuget/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Pruebas
+[Tt]est[Rr]esults/
+*.coverage
+*.trx
+coverage*.json
+coverage*.xml
+coverage*.info
+TestResults/
+
+## Logs
+*.log
+logs/
+Logs/
+
+## Variables de entorno / secretos
+.env
+.env.*
+!.env.example
+secrets.json
+appsettings.Local.json
+appsettings.*.Local.json
+
+## Base de datos local de desarrollo (SQLite)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3

@@ -1,0 +1,166 @@
+@{
+    Layout = "_PublicLayout";
+}
+<section class="rs-hero">
+    <div class="rs-container">
+        <div class="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+            <div>
+                <p class="rs-eyebrow">Donaciones</p>
+                <h1 class="rs-title">Dar es más fácil cuando sabes a dónde va.</h1>
+                <p class="rs-lead">
+                    Puedes aportar alimentos, tiempo o difusión. En esta versión, la plataforma registra donaciones de insumos concretos para comedores de la red y te entrega un código de seguimiento.
+                </p>
+                <div class="mt-7 flex flex-wrap gap-2">
+                    <a class="rs-btn rs-btn--primary" asp-controller="FoodBank" asp-action="Index">
+                        Registrar una donación
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5 12h14" />
+                            <path d="m12 5 7 7-7 7" />
+                        </svg>
+                    </a>
+                    <a class="rs-btn rs-btn--secondary" asp-controller="Seguimiento" asp-action="Index">Seguir mi donación</a>
+                </div>
+            </div>
+            <div class="rs-photo-frame aspect-[4/3]">
+                <img class="rs-photo" src="~/img/donacion-alimentos.jpg" alt="Alimentos donados y organizados para su entrega" loading="lazy" />
+                <div class="rs-photo-frame__caption">
+                    <p>Una donación con destino.</p>
+                    <p>Y un código para saber qué pasó con ella.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="rs-section rs-section--tight">
+    <div class="rs-container">
+        <div class="grid gap-4 md:grid-cols-3">
+            <article class="rs-feature" data-reveal>
+                <span class="rs-icon-box" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 7h18" />
+                        <path d="M6 7v13h12V7" />
+                        <path d="M9 7V4h6v3" />
+                    </svg>
+                </span>
+                <h2>Donar alimentos</h2>
+                <p>Elige un insumo que un comedor necesita y registra la cantidad. La plataforma descuenta la necesidad y genera el seguimiento.</p>
+            </article>
+            <article class="rs-feature" data-reveal>
+                <span class="rs-icon-box" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="9" cy="8" r="3.2" />
+                        <path d="M3.5 20c.8-3 2.6-4.4 5.5-4.4s4.7 1.4 5.5 4.4" />
+                        <path d="M16 5.5a3 3 0 0 1 0 5.8" />
+                        <path d="M17.5 15.6c2 .5 3.2 1.9 3.8 4.4" />
+                    </svg>
+                </span>
+                <h2>Donar tiempo</h2>
+                <p>La cocina, la clasificación y el traslado también necesitan manos. Cuéntanos qué te gustaría hacer y te conectamos con un comedor.</p>
+                <a class="rs-link-arrow mt-4" asp-controller="Home" asp-action="Contacto">Quiero ser voluntario</a>
+            </article>
+            <article class="rs-feature" data-reveal>
+                <span class="rs-icon-box" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+                        <path d="M16 6l-4-4-4 4" />
+                        <path d="M12 2v13" />
+                    </svg>
+                </span>
+                <h2>Difundir la red</h2>
+                <p>Compartir el directorio también ayuda. La visibilidad permite que más personas y organizaciones encuentren la red y se sumen.</p>
+                <a class="rs-link-arrow mt-4" asp-controller="Comedores" asp-action="Index">Compartir comedores</a>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="rs-section">
+    <div class="rs-container grid gap-10 lg:grid-cols-[1fr_1fr] lg:gap-16">
+        <div>
+            <p class="rs-eyebrow">Donación de alimentos</p>
+            <h2 class="rs-title rs-title--sm">Así se registra un aporte.</h2>
+            <p class="rs-lead">El formulario está conectado a la API y crea una donación real. Antes de enviarlo, puedes revisar el comedor, el insumo y la cantidad.</p>
+
+            <ol class="rs-timeline mt-8">
+                <li class="rs-timeline__item is-done">
+                    <span class="rs-timeline__marker">1</span>
+                    <div>
+                        <h3 class="rs-timeline__title">Elige el insumo</h3>
+                        <p class="rs-timeline__detail">Cada opción indica el comedor, el insumo y la unidad de medida.</p>
+                    </div>
+                </li>
+                <li class="rs-timeline__item is-done">
+                    <span class="rs-timeline__marker">2</span>
+                    <div>
+                        <h3 class="rs-timeline__title">Indica cantidad y donante</h3>
+                        <p class="rs-timeline__detail">La cantidad debe ser mayor que cero. El nombre del donante aparecerá en el registro del comedor.</p>
+                    </div>
+                </li>
+                <li class="rs-timeline__item is-current">
+                    <span class="rs-timeline__marker">3</span>
+                    <div>
+                        <h3 class="rs-timeline__title">Recibe tu código</h3>
+                        <p class="rs-timeline__detail">Al guardar, la plataforma muestra un código como <span class="rs-mono text-xs">DON-2026-00042</span> para consultar el estado.</p>
+                    </div>
+                </li>
+            </ol>
+        </div>
+
+        <div class="rs-panel h-fit">
+            <div class="rs-panel__head">
+                <div>
+                    <h2 class="rs-panel__title">Antes de donar</h2>
+                    <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Tres cosas que conviene saber.</p>
+                </div>
+            </div>
+            <div class="rs-panel__body space-y-4">
+                <div class="rs-alert rs-alert--info">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 11v5" />
+                        <path d="M12 8h.01" />
+                    </svg>
+                    <span>La donación se registra por insumo, no por comedor. Así el impacto queda asociado a una necesidad concreta.</span>
+                </div>
+                <div class="rs-alert rs-alert--info">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+                        <path d="M4 12h16" />
+                        <path d="M5 12a7 7 0 0 0 14 0" />
+                        <path d="M9 16h6" />
+                    </svg>
+                    <span>Confirma con el comedor la logística de entrega. El registro no reemplaza la coordinación directa.</span>
+                </div>
+                <div class="rs-alert rs-alert--warn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+                        <path d="M12 9v4" />
+                        <path d="M12 17h.01" />
+                        <path d="M10.3 4.7 2.9 18a1.7 1.7 0 0 0 1.5 2.5h15.2a1.7 1.7 0 0 0 1.5-2.5L13.7 4.7a1.9 1.9 0 0 0-3.4 0Z" />
+                    </svg>
+                    <span>Esta versión no procesa pagos ni donaciones monetarias. Solo el registro de insumos está habilitado.</span>
+                </div>
+                <a class="rs-btn rs-btn--primary rs-btn--block" asp-controller="FoodBank" asp-action="Index">Ir al formulario</a>
+                <p class="text-center text-[0.68rem] font-semibold text-[#5f6f66]">Las donaciones requieren que la API esté disponible.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="rs-section rs-section--cream">
+    <div class="rs-container">
+        <div class="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+            <div class="rs-photo-frame aspect-[5/4]">
+                <img class="rs-photo" src="~/img/donacion-alimentos.jpg" alt="Cajas con alimentos listos para ser donados" loading="lazy" />
+            </div>
+            <div>
+                <p class="rs-eyebrow">Transparencia</p>
+                <h2 class="rs-title rs-title--sm">Tu aporte no se pierde en una lista.</h2>
+                <p class="rs-lead">Cada donación queda registrada con un código único y un estado. El seguimiento público muestra solo la donación que corresponde a ese código, no los datos de otras personas.</p>
+                <div class="mt-6 flex flex-wrap gap-2">
+                    <a class="rs-btn rs-btn--secondary" asp-controller="Seguimiento" asp-action="Index">Consultar un código</a>
+                    <a class="rs-btn rs-btn--ghost" asp-controller="Home" asp-action="ComoFunciona">Cómo funciona</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

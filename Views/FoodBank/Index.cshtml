@@ -1,0 +1,197 @@
+@model BancoAlimentosViewModel
+@{
+    Layout = "_AppLayout";
+    ViewData["Title"] = "Registrar donación";
+    ViewData["AppSection"] = "Banco de alimentos";
+    ViewData["AppTitle"] = "Registrar una donación";
+    var comedoresOrdenados = Model.Comedores
+        .OrderBy(c => c.Estado switch { "Emergencia" => 0, "Alerta" => 1, "Abastecido" => 2, _ => 3 })
+        .ThenBy(c => c.PorcentajeAbastecimiento)
+        .ToList();
+}
+
+<div class="rs-page-head">
+    <div>
+        <p class="rs-eyebrow">Entrada de inventario</p>
+        <h1 class="rs-page-title">Convierte un aporte en stock disponible.</h1>
+        <p class="rs-page-subtitle">Selecciona un insumo concreto de un comedor. Al guardar se genera un código de seguimiento y la donación queda pendiente hasta que la coordinación confirme la recepción.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+        <a class="rs-btn rs-btn--secondary" asp-controller="Seguimiento" asp-action="Index">Buscar seguimiento</a>
+        <a class="rs-btn rs-btn--secondary" asp-controller="ControlPanel" asp-action="Index">Volver al panel</a>
+    </div>
+</div>
+
+@if (Model.Exito is not null)
+{
+    <div class="rs-alert rs-alert--ok mb-4" role="status">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+            <path d="m5 12 4 4L19 6" />
+        </svg>
+        <span>
+            <strong>Donación registrada y pendiente de confirmación.</strong> Código de seguimiento:
+            <span class="rs-mono ml-1 rounded bg-white/60 px-1.5 py-0.5 font-black">@Model.Exito</span>
+            <a class="ml-1 font-extrabold underline underline-offset-2" asp-controller="Seguimiento" asp-action="Index" asp-route-codigo="@Model.Exito">Seguir mi donación</a>
+        </span>
+    </div>
+}
+
+@if (Model.Error is not null)
+{
+    <div class="rs-alert rs-alert--error mb-4" role="alert">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+            <path d="M10.3 4.7 2.9 18a1.7 1.7 0 0 0 1.5 2.5h15.2a1.7 1.7 0 0 0 1.5-2.5L13.7 4.7a1.9 1.9 0 0 0-3.4 0Z" />
+        </svg>
+        <span><strong>No se pudo registrar.</strong> @Model.Error</span>
+    </div>
+}
+
+<div class="grid gap-4 items-start xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+    <section class="rs-panel">
+        <div class="rs-panel__head">
+            <div>
+                <h2 class="rs-panel__title">Datos de la donación</h2>
+                <p class="mt-1 text-[0.7rem] text-[#5f6f66]">La donación queda pendiente; el stock se suma cuando la coordinación confirma la recepción.</p>
+            </div>
+            <span class="rs-badge rs-badge--brand">Formulario real</span>
+        </div>
+        <div class="rs-panel__body">
+            @if (Model.Comedores.Count == 0)
+            {
+                <div class="rs-alert rs-alert--warn mb-4">
+                    <span>No hay insumos disponibles para donar. La API debe tener comedores e inventario registrados.</span>
+                </div>
+            }
+
+            <form method="post" asp-controller="FoodBank" asp-action="Registrar" class="grid gap-4">
+                <div>
+                    <label class="rs-label" for="InsumoId">Insumo a donar *</label>
+                    <select class="rs-select" id="InsumoId" name="InsumoId" required>
+                        <option value="">Elige el comedor y el insumo</option>
+                        @foreach (var insumo in Model.Insumos)
+                        {
+                            var elegido = Model.InsumoId == insumo.InsumoId;
+                            <option value="@insumo.InsumoId" selected="@elegido">@insumo.Texto</option>
+                        }
+                    </select>
+                    <p class="rs-help">Cada opción representa un insumo concreto de la despensa de un comedor.</p>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="rs-label" for="Cantidad">Cantidad *</label>
+                        <input class="rs-input" id="Cantidad" name="Cantidad" type="number" min="1" required value="@(Model.Cantidad > 0 ? Model.Cantidad : null)" placeholder="Ej. 10" />
+                    </div>
+                    <div>
+                        <label class="rs-label" for="PuntoRecojo">Punto de recogida</label>
+                        <input class="rs-input" id="PuntoRecojo" name="PuntoRecojo" type="text" value="@Model.PuntoRecojo" placeholder="Dirección del donante" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="rs-label" for="Donante">Nombre del donante *</label>
+                    <input class="rs-input" id="Donante" name="Donante" type="text" required value="@Model.Donante" placeholder="Persona o institución que dona" />
+                    <p class="rs-help">Este nombre quedará asociado al movimiento de entrada del comedor.</p>
+                </div>
+
+                <div class="rounded-xl border border-[#dce7df] bg-[#fbfdfb] p-3.5">
+                    <p class="text-[0.68rem] font-bold leading-5 text-[#5f6f66]">
+                        Al guardar, la donación se registra en estado pendiente y se genera un código con formato <span class="rs-mono text-[0.65rem]">DON-AÑO-NÚMERO</span>. Conserva ese código para el seguimiento. La coordinación confirmará la recepción antes de que el stock esté disponible.
+                    </p>
+                </div>
+
+                <button class="rs-btn rs-btn--primary rs-btn--block" type="submit">
+                    Registrar donación y generar código
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M5 12h14" />
+                        <path d="m12 5 7 7-7 7" />
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <div class="space-y-4">
+        <section class="rs-panel">
+            <div class="rs-panel__head">
+                <div>
+                    <h2 class="rs-panel__title">Dónde hace más falta</h2>
+                    <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Comedores por nivel de urgencia.</p>
+                </div>
+                <span class="rs-badge rs-badge--neutral">@Model.Comedores.Count comedores</span>
+            </div>
+            <div class="rs-panel__body">
+                @if (comedoresOrdenados.Count == 0)
+                {
+                    <p class="py-5 text-center text-[0.78rem] text-[#5f6f66]">No hay comedores registrados.</p>
+                }
+                else
+                {
+                    <div class="space-y-2.5">
+                        @foreach (var comedor in comedoresOrdenados.Take(6))
+                        {
+                            <a class="flex items-center gap-3 rounded-xl border border-[#dce7df] p-3 transition hover:border-[#27865d] hover:bg-[#f2f8f4]" asp-controller="Comedores" asp-action="Detalle" asp-route-id="@comedor.Id">
+                                <span class="rs-status-dot rs-status-dot--@Presentacion.ColorEstado(comedor.Estado)" aria-hidden="true"></span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-[0.78rem] font-extrabold">@comedor.Nombre</span>
+                                    <span class="mt-0.5 block text-[0.64rem] font-semibold text-[#5f6f66]">@comedor.Distrito · @comedor.Inventario.Count insumos</span>
+                                </span>
+                                <span class="text-right">
+                                    <span class="block text-[0.76rem] font-black">@comedor.PorcentajeAbastecimiento.ToString("0.#")%</span>
+                                    <span class="block text-[0.58rem] font-bold text-[#5f6f66]">@Presentacion.EtiquetaEstado(comedor.Estado)</span>
+                                </span>
+                            </a>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="rs-panel">
+            <div class="rs-panel__head">
+                <div>
+                    <h2 class="rs-panel__title">Donaciones recientes</h2>
+                    <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Últimos registros recibidos por la API.</p>
+                </div>
+            </div>
+            @if (Model.Donaciones.Count == 0)
+            {
+                <div class="rs-panel__body">
+                    <p class="text-[0.78rem] leading-6 text-[#5f6f66]">Todavía no hay donaciones registradas en esta sesión de la red.</p>
+                </div>
+            }
+            else
+            {
+                <div class="rs-table-wrap m-4">
+                    <table class="rs-table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Donante</th>
+                                <th>Comedor</th>
+                                <th>Cantidad</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var donacion in Model.Donaciones)
+                            {
+                                <tr>
+                                    <td class="whitespace-nowrap">
+                                        <a class="rs-mono text-[0.68rem] font-bold text-[#1b6b4a] hover:underline" asp-controller="Seguimiento" asp-action="Index" asp-route-codigo="@donacion.CodigoSeguimiento">@donacion.CodigoSeguimiento</a>
+                                    </td>
+                                    <td>@donacion.Donante</td>
+                                    <td>@donacion.ComedorNombre</td>
+                                    <td class="whitespace-nowrap font-extrabold text-[#2b8a5b]">@donacion.Cantidad @donacion.UnidadMedida</td>
+                                    <td><span class="@Presentacion.ClaseEstadoDonacion(donacion.Estado)">@Presentacion.EtiquetaEstadoDonacion(donacion.Estado)</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+</div>

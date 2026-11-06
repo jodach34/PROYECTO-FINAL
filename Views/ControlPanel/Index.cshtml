@@ -1,0 +1,287 @@
+@model PanelViewModel
+@{
+    Layout = "_AppLayout";
+    ViewData["Title"] = "Panel operativo";
+    ViewData["AppSection"] = "Panel operativo";
+    ViewData["AppTitle"] = "Resumen del comedor";
+
+    var ultimoAsiento = Model.Kardex.FirstOrDefault()?.FechaHora;
+    var masCritico = Model.Comedor?.Inventario
+        .Where(i => i.Porcentaje is not null)
+        .OrderBy(i => i.Porcentaje)
+        .FirstOrDefault();
+    var pctCritico = Math.Clamp(masCritico?.Porcentaje ?? 0m, 0m, 100m);
+    var colorCritico = pctCritico >= 60m ? "ok" : pctCritico >= 30m ? "alerta" : "critico";
+}
+
+<div class="rs-page-head">
+    <div>
+        <p class="rs-eyebrow">Operación diaria</p>
+        <h1 class="rs-page-title">El pulso de la red, en un vistazo.</h1>
+        <p class="rs-page-subtitle">
+            @if (Model.Comedor is not null)
+            {
+                <span>@Model.Comedor.Nombre · @Model.Comedor.Distrito</span>
+                <span> · @Model.Comedor.RacionesDiarias raciones/día</span>
+            }
+            else
+            {
+                <span>Sin comedor seleccionado</span>
+            }
+            @if (ultimoAsiento is not null)
+            {
+                <span> · Último movimiento: @ultimoAsiento.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+            }
+        </p>
+    </div>
+
+    <div class="flex flex-wrap items-end gap-2">
+        @if (Model.Comedores.Count > 0)
+        {
+            <form method="get" asp-controller="ControlPanel" asp-action="Index" class="min-w-[13rem]">
+                <label for="comedorId" class="rs-label">Comedor</label>
+                <select id="comedorId" name="comedorId" class="rs-select" onchange="this.form.submit()">
+                    @foreach (var comedor in Model.Comedores)
+                    {
+                        var seleccionado = Model.Comedor is not null && comedor.Id == Model.Comedor.Id;
+                        <option value="@comedor.Id" selected="@seleccionado">@comedor.Nombre</option>
+                    }
+                </select>
+                <noscript><button type="submit" class="rs-btn rs-btn--secondary rs-btn--sm mt-2 w-full">Ver comedor</button></noscript>
+            </form>
+        }
+        <a class="rs-btn rs-btn--secondary" asp-controller="Comedores" asp-action="Index">Ver directorio</a>
+        @if (User.IsInRole("Operador") || User.IsInRole("Coordinador") || User.IsInRole("Administrador"))
+        {
+            <a class="rs-btn rs-btn--secondary" asp-controller="Inventario" asp-action="Index">Inventario</a>
+        }
+        <a class="rs-btn rs-btn--primary" asp-controller="FoodBank" asp-action="Index">Registrar donación</a>
+    </div>
+</div>
+
+@if (Model.Error is not null)
+{
+    <div class="rs-alert rs-alert--warn mb-4" role="alert">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+            <path d="M10.3 4.7 2.9 18a1.7 1.7 0 0 0 1.5 2.5h15.2a1.7 1.7 0 0 0 1.5-2.5L13.7 4.7a1.9 1.9 0 0 0-3.4 0Z" />
+        </svg>
+        <span><strong>No se pudo cargar toda la información.</strong> @Model.Error</span>
+    </div>
+}
+
+@if (Model.ComedorNoEncontrado)
+{
+    <div class="rs-alert rs-alert--info mb-4" role="status">
+        <span>El comedor solicitado no existe o ya no está registrado. Se muestran los datos disponibles de la red.</span>
+    </div>
+}
+
+<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <article class="rs-kpi">
+        <p class="rs-kpi__label">Comedores en la red</p>
+        <p class="rs-kpi__value">@Model.TotalComedores</p>
+        <p class="rs-kpi__note">Organizaciones visibles para coordinar apoyo.</p>
+    </article>
+    <article class="rs-kpi">
+        <p class="rs-kpi__label">Raciones diarias</p>
+        <p class="rs-kpi__value">@Model.TotalRaciones.ToString("N0")</p>
+        <p class="rs-kpi__note">Capacidad declarada por los comedores.</p>
+    </article>
+    <article class="rs-kpi">
+        <p class="rs-kpi__label">Abastecimiento promedio</p>
+        <p class="rs-kpi__value">@Model.PromedioAbastecimiento.ToString("0.#")%</p>
+        <p class="rs-kpi__note">Inventario actual frente a la capacidad de la red.</p>
+    </article>
+    <article class="rs-kpi">
+        <p class="rs-kpi__label">Requieren atención</p>
+        <p class="rs-kpi__value text-[#b33a48]">@Model.ComedoresEnRiesgo</p>
+        <p class="rs-kpi__note">Comedores en alerta o emergencia.</p>
+    </article>
+</div>
+
+<div class="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+    <section class="rs-panel">
+        <div class="rs-panel__head">
+            <div>
+                <h2 class="rs-panel__title">Estado del comedor seleccionado</h2>
+                <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Resumen de inventario y capacidad operativa.</p>
+            </div>
+            @if (Model.Comedor is not null)
+            {
+                <span class="@Presentacion.ClaseEstado(Model.Comedor.Estado)">@Presentacion.EtiquetaEstado(Model.Comedor.Estado)</span>
+            }
+        </div>
+        <div class="rs-panel__body">
+            @if (Model.Comedor is null)
+            {
+                <div class="rs-empty">
+                    <span class="rs-empty__icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 20h18" />
+                            <path d="M5 20V9l7-5 7 5v11" />
+                            <path d="M9 20v-6h6v6" />
+                        </svg>
+                    </span>
+                    <h3>No hay un comedor seleccionado</h3>
+                    <p>Selecciona un comedor en la parte superior para consultar su inventario y movimientos.</p>
+                </div>
+            }
+            else
+            {
+                <div class="grid gap-5 sm:grid-cols-[1fr_auto] sm:items-start">
+                    <div>
+                        <p class="text-[0.65rem] font-black uppercase tracking-[0.13em] text-[#5f6f66]">Abastecimiento actual</p>
+                        <div class="mt-2 flex items-end gap-3">
+                            <p class="font-display text-4xl font-extrabold tracking-[-0.06em]">@Model.Comedor.PorcentajeAbastecimiento.ToString("0.#")%</p>
+                            <span class="pb-1 text-[0.7rem] font-bold text-[#5f6f66]">@Model.Comedor.Inventario.Count insumos</span>
+                        </div>
+                        <div class="rs-progress mt-3">
+                            <span class="@Presentacion.ClaseBarra(Model.Comedor.Estado)" style="width:@Math.Clamp(Model.Comedor.PorcentajeAbastecimiento, 0m, 100m)%"></span>
+                        </div>
+                        <dl class="mt-5 grid grid-cols-2 gap-3 text-[0.72rem]">
+                            <div class="rounded-xl bg-[#f5f7f4] p-3">
+                                <dt class="font-bold text-[#5f6f66]">Distrito</dt>
+                                <dd class="mt-1 font-extrabold">@Model.Comedor.Distrito</dd>
+                            </div>
+                            <div class="rounded-xl bg-[#f5f7f4] p-3">
+                                <dt class="font-bold text-[#5f6f66]">Raciones/día</dt>
+                                <dd class="mt-1 font-extrabold">@Model.Comedor.RacionesDiarias</dd>
+                            </div>
+                            <div class="col-span-2 rounded-xl bg-[#f5f7f4] p-3">
+                                <dt class="font-bold text-[#5f6f66]">Dirección de referencia</dt>
+                                <dd class="mt-1 font-extrabold">@Model.Comedor.Direccion</dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <div class="rounded-xl border border-[#dce7df] bg-[#fbfdfb] p-4 sm:w-52">
+                        <p class="text-[0.62rem] font-black uppercase tracking-[0.13em] text-[#5f6f66]">Insumo más crítico</p>
+                        @if (masCritico is not null)
+                        {
+                            <p class="mt-2 font-display text-2xl font-extrabold tracking-[-0.05em]">@pctCritico.ToString("0.#")%</p>
+                            <p class="mt-1 text-[0.74rem] font-extrabold">@masCritico.Nombre</p>
+                            <div class="rs-progress mt-3">
+                                <span class="rs-progress__bar rs-progress__bar--@colorCritico" style="width:@pctCritico%"></span>
+                            </div>
+                            <p class="mt-2 text-[0.64rem] leading-5 text-[#5f6f66]">
+                                @(masCritico.DiasCobertura is { } dias ? $"{dias:0.#} días de cobertura" : "Sin estimación de días")
+                            </p>
+                        }
+                        else
+                        {
+                            <p class="mt-3 text-[0.72rem] leading-5 text-[#5f6f66]">Este comedor no tiene insumos con tope registrado.</p>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="rs-panel">
+        <div class="rs-panel__head">
+            <div>
+                <h2 class="rs-panel__title">Prioridades de la red</h2>
+                <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Comedores ordenados por urgencia.</p>
+            </div>
+            <a class="rs-link-arrow" asp-controller="Comedores" asp-action="Index">Ver todos</a>
+        </div>
+        <div class="rs-panel__body">
+            @if (Model.Comedores.Count == 0)
+            {
+                <p class="py-6 text-center text-[0.78rem] text-[#5f6f66]">No hay comedores registrados.</p>
+            }
+            else
+            {
+                <div class="space-y-2.5">
+                    @foreach (var comedor in Model.Comedores
+                        .OrderBy(c => c.Estado switch { "Emergencia" => 0, "Alerta" => 1, "Abastecido" => 2, _ => 3 })
+                        .ThenBy(c => c.PorcentajeAbastecimiento)
+                        .Take(5))
+                    {
+                        <a class="flex items-center gap-3 rounded-xl border border-[#dce7df] p-3 transition hover:border-[#27865d] hover:bg-[#f2f8f4]" asp-controller="ControlPanel" asp-action="Index" asp-route-comedorId="@comedor.Id">
+                            <span class="rs-status-dot rs-status-dot--@Presentacion.ColorEstado(comedor.Estado)" aria-hidden="true"></span>
+                            <span class="min-w-0 flex-1">
+                                <span class="block truncate text-[0.78rem] font-extrabold">@comedor.Nombre</span>
+                                <span class="mt-0.5 block text-[0.64rem] font-semibold text-[#5f6f66]">@comedor.Distrito</span>
+                            </span>
+                            <span class="text-right">
+                                <span class="block text-[0.76rem] font-black">@comedor.PorcentajeAbastecimiento.ToString("0.#")%</span>
+                                <span class="block text-[0.58rem] font-bold text-[#5f6f66]">@Presentacion.EtiquetaEstado(comedor.Estado)</span>
+                            </span>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+</div>
+
+<section class="rs-panel mt-4">
+    <div class="rs-panel__head">
+        <div>
+            <h2 class="rs-panel__title">Kardex reciente</h2>
+            <p class="mt-1 text-[0.7rem] text-[#5f6f66]">
+                @if (Model.Comedor is not null)
+                {
+                    <span>Últimos movimientos de @Model.Comedor.Nombre.</span>
+                }
+                else
+                {
+                    <span>Selecciona un comedor para ver sus movimientos.</span>
+                }
+            </p>
+        </div>
+        <span class="rs-badge rs-badge--neutral">@Model.Kardex.Count asientos</span>
+    </div>
+
+    @if (Model.Kardex.Count == 0)
+    {
+        <div class="rs-empty m-4">
+            <span class="rs-empty__icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4h16v16H4z" />
+                    <path d="M8 8h8M8 12h8M8 16h5" />
+                </svg>
+            </span>
+            <h3>Sin movimientos registrados</h3>
+            <p>Este comedor todavía no tiene entradas ni salidas en su kardex.</p>
+        </div>
+    }
+    else
+    {
+        <div class="rs-table-wrap m-4">
+            <table class="rs-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Insumo</th>
+                        <th>Tipo</th>
+                        <th>Cantidad</th>
+                        <th>Concepto</th>
+                        <th>Responsable</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var fila in Model.Kardex)
+                    {
+                        var esEntrada = string.Equals(fila.TipoMovimiento, "Entrada", StringComparison.OrdinalIgnoreCase);
+                        <tr>
+                            <td class="whitespace-nowrap text-[#5f6f66]">@fila.FechaHora.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                            <td class="font-bold text-[#13251c]">@fila.InsumoNombre</td>
+                            <td>
+                                <span class="rs-badge @(esEntrada ? "rs-badge--ok" : "rs-badge--critico")">@(esEntrada ? "Entrada" : "Salida")</span>
+                            </td>
+                            <td class="whitespace-nowrap font-extrabold @(esEntrada ? "text-[#2b8a5b]" : "text-[#b33a48]")">
+                                @(esEntrada ? "+" : "−") @fila.Cantidad.ToString("0.##") @fila.UnidadMedida
+                            </td>
+                            <td class="text-[#5f6f66]">@fila.Concepto</td>
+                            <td class="text-[#5f6f66]">@fila.Responsable</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

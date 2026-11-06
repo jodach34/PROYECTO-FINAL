@@ -1,0 +1,26 @@
+﻿@model ErrorViewModel
+@{
+    Layout = "_PublicLayout";
+    ViewData["Title"] = "Algo no salió como esperábamos";
+}
+<section class="rs-section">
+    <div class="rs-container">
+        <div class="mx-auto max-w-2xl text-center">
+            <p class="rs-eyebrow justify-center">Error</p>
+            <h1 class="rs-title">Algo no salió como esperábamos.</h1>
+            <p class="rs-lead mx-auto">
+                La página no pudo completar la solicitud. Puedes volver al inicio o intentarlo de nuevo en unos momentos.
+            </p>
+            @if (Model.ShowRequestId)
+            {
+                <p class="mt-4 text-[0.7rem] font-semibold text-[#5f6f66]">
+                    Identificador de la solicitud: <span class="rs-mono rounded bg-white px-1.5 py-0.5">@Model.RequestId</span>
+                </p>
+            }
+            <div class="mt-7 flex flex-wrap justify-center gap-2">
+                <a class="rs-btn rs-btn--primary" asp-controller="Home" asp-action="Index">Volver al inicio</a>
+                <a class="rs-btn rs-btn--secondary" asp-controller="Comedores" asp-action="Index">Ver comedores</a>
+            </div>
+        </div>
+    </div>
+</section>

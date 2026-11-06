@@ -1,0 +1,71 @@
+@model LoginViewModel
+@{
+    Layout = "_AuthLayout";
+}
+<div class="rs-auth__card">
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <p class="rs-eyebrow">Bienvenido de vuelta</p>
+            <h1 class="mt-3 font-display text-2xl font-extrabold tracking-[-0.045em]">Inicia sesión</h1>
+            <p class="mt-2 text-[0.8rem] leading-6 text-[#5f6f66]">Accede al panel para coordinar comedores, inventario y donaciones.</p>
+        </div>
+        <span class="rs-badge rs-badge--brand">Acceso seguro</span>
+    </div>
+
+    @if (TempData["Exito"] is string exito)
+    {
+        <div class="rs-alert rs-alert--ok mt-5" role="status">
+            <span>@exito</span>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <div class="rs-alert rs-alert--error mt-5" role="alert">
+            <span>@Model.Error</span>
+        </div>
+    }
+
+    <form class="mt-6 grid gap-4" method="post" asp-controller="Cuenta" asp-action="Login">
+        <input type="hidden" asp-for="ReturnUrl" />
+        <div asp-validation-summary="ModelOnly" class="rs-alert rs-alert--error" role="alert"></div>
+
+        <div>
+            <label class="rs-label" for="Correo">Correo electrónico</label>
+            <input class="rs-input" id="Correo" asp-for="Correo" type="email" autocomplete="email" placeholder="nombre@correo.com" required />
+            <span class="rs-help text-[#b42318]" asp-validation-for="Correo"></span>
+        </div>
+        <div>
+            <div class="flex items-center justify-between gap-3">
+                <label class="rs-label" for="Password">Contraseña</label>
+                <a class="text-[0.68rem] font-bold text-[#1b6b4a] hover:underline" asp-controller="Cuenta" asp-action="RecuperarPassword">¿La olvidaste?</a>
+            </div>
+            <div class="relative">
+                <input class="rs-input pr-12" id="Password" asp-for="Password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required />
+                <button class="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1.5 text-[#5f6f66] transition hover:bg-[#f2f8f4] hover:text-[#1b6b4a]" type="button" data-password-toggle="#Password" aria-label="Mostrar contraseña" aria-pressed="false">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+                        <circle cx="12" cy="12" r="2.5" />
+                    </svg>
+                </button>
+            </div>
+            <span class="rs-help text-[#b42318]" asp-validation-for="Password"></span>
+        </div>
+        <label class="rs-check">
+            <input asp-for="Recordarme" type="checkbox" />
+            <span>Mantener mi sesión iniciada en este dispositivo.</span>
+        </label>
+        <button class="rs-btn rs-btn--primary rs-btn--block" type="submit">Entrar a la plataforma</button>
+    </form>
+
+    <div class="my-5 flex items-center gap-3">
+        <span class="h-px flex-1 bg-[#dce7df]"></span>
+        <span class="text-[0.65rem] font-bold uppercase tracking-[0.12em] text-[#8b9a91]">o</span>
+        <span class="h-px flex-1 bg-[#dce7df]"></span>
+    </div>
+
+    <p class="text-center text-[0.78rem] text-[#5f6f66]">
+        ¿Todavía no tienes cuenta?
+        <a class="font-extrabold text-[#1b6b4a] hover:underline" asp-controller="Cuenta" asp-action="Registro">Solicita acceso</a>
+    </p>
+</div>

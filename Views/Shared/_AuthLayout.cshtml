@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    @await Html.PartialAsync("_RescautaHead")
+    @await RenderSectionAsync("Head", false)
+</head>
+<body class="rs-auth min-h-screen text-[#13251c] antialiased">
+    <a class="rs-skip-link" href="#contenido-auth">Saltar al contenido</a>
+    <div class="rs-auth__shell">
+        <aside class="rs-auth__aside" aria-label="Rescauta en acción">
+            <img src="~/img/voluntariado.jpg" alt="Personas voluntarias organizando alimentos en un comedor comunitario" />
+            <div class="rs-auth__aside-content">
+                <a class="rs-brand rs-brand--inverse" asp-controller="Home" asp-action="Index">
+                    <span class="rs-brand__mark" aria-hidden="true">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 12h16" />
+                            <path d="M5 12a7 7 0 0 0 14 0" />
+                            <path d="M8 8c1.2-2.2 2.6-3.3 4-3.3S14.8 5.8 16 8" />
+                            <path d="M9 16h6" />
+                        </svg>
+                    </span>
+                    <span>
+                        <span class="rs-brand__name">Rescauta</span>
+                        <span class="rs-brand__tag">Comida que vuelve a servir</span>
+                    </span>
+                </a>
+
+                <div class="max-w-lg">
+                    <p class="text-[0.68rem] font-black uppercase tracking-[0.18em] text-[#c9e79d]">Una red que sí llega a tiempo</p>
+                    <h1 class="mt-4 font-display text-4xl font-extrabold leading-[1.08] tracking-[-0.05em] text-white">
+                        Cada alimento cuenta. Cada comedor también.
+                    </h1>
+                    <p class="mt-4 max-w-md text-sm leading-7 text-white/65">
+                        Accede a la plataforma para coordinar inventario, registrar donaciones y acompañar el trabajo de los comedores comunitarios.
+                    </p>
+                </div>
+
+                <figure class="max-w-md">
+                    <blockquote class="text-sm leading-7 text-white/75">
+                        “La comida no sobra: lo que falta es una forma más simple de conectarla con quien la necesita.”
+                    </blockquote>
+                    <figcaption class="mt-3 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-white/40">
+                        Principio de Rescauta
+                    </figcaption>
+                </figure>
+            </div>
+        </aside>
+
+        <main id="contenido-auth" class="rs-auth__main">
+            <div class="rs-auth__top">
+                <a class="rs-brand lg:hidden" asp-controller="Home" asp-action="Index">
+                    <span class="rs-brand__mark" aria-hidden="true">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 12h16" />
+                            <path d="M5 12a7 7 0 0 0 14 0" />
+                            <path d="M8 8c1.2-2.2 2.6-3.3 4-3.3S14.8 5.8 16 8" />
+                            <path d="M9 16h6" />
+                        </svg>
+                    </span>
+                    <span>
+                        <span class="rs-brand__name">Rescauta</span>
+                        <span class="rs-brand__tag">Comida que vuelve a servir</span>
+                    </span>
+                </a>
+                <a class="rs-btn rs-btn--ghost rs-btn--sm ml-auto" asp-controller="Home" asp-action="Index">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="m15 18-6-6 6-6" />
+                    </svg>
+                    Volver al inicio
+                </a>
+            </div>
+
+            @RenderBody()
+        </main>
+    </div>
+
+    <script src="~/js/rescauta.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", false)
+</body>
+</html>

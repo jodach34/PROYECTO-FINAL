@@ -1,0 +1,54 @@
+# =============================================================================
+# Contexto de build de los Dockerfiles (Dockerfile = API, Dockerfile.mvc = MVC).
+#
+# Cada linea listada aqui NO entra en la imagen. Eso acelera el build y, sobre todo,
+# evita que un artefacto de esta maquina (bin/, obj/) pise al generado dentro del
+# contenedor: un project.assets.json con rutas absolutas de otro equipo hace fallar el
+# restore.
+# =============================================================================
+
+# Historial y metadatos de Git.
+.git
+.gitignore
+.gitattributes
+
+# Artefactos de compilacion de AMBAS partes del repositorio.
+**/bin/
+**/obj/
+obj/
+bin/
+*.user
+*.suo
+
+# Bases de datos locales: el contenedor crea la suya al arrancar (MigrateOnStartup).
+# Subir una .db al build ademas hace que la imagen varia en cada cambio de codigo.
+*.db
+*.db-shm
+*.db-wal
+
+# Editores y sistema operativo.
+.vs/
+.vscode/
+.idea/
+**/.DS_Store
+Thumbs.db
+
+# Documentacion de despliegue: el contenedor no la necesita para arrancar.
+render.yaml
+Rescauta/README.md
+Rescauta/docker-compose.yml
+Rescauta/.editorconfig
+
+# =============================================================================
+# NOTA IMPORTANTE
+#
+# Este archivo antes excluia el proyecto MVC de la raiz (PROYECTO-FINAL.csproj,
+# Program.cs, Views/) con el pretexto de "que el build de la API no lo confunda". Era
+# un error: esas reglas Rompen Dockerfile.mvc, que es justamente el proyecto que las
+# necesita. El Dockerfile de la API nunca se vio afectado porque construye
+# Rescauta/Rescauta.Api, que no arrastra los globs de la raiz del repositorio.
+#
+# Por eso aqui ya no se excluye NADA del proyecto MVC. Si vuelve a aparecer una regla
+# tipo "/Program.cs" o "/Views/", el resultado sera un Dockerfile.mvc que no compila
+# por faltan archivos, con un error que no menciona el .dockerignore en ningun lado.
+# =============================================================================
