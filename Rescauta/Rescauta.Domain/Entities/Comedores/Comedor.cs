@@ -14,6 +14,8 @@ namespace Rescauta.Domain.Entities.Comedores;
 ///   * MapaX / MapaY estan entre 0 y 100: son porcentajes sobre el lienzo del SVG del mapa,
 ///     no coordenadas geograficas. Se guardan asi a proposito, para que el pin siga cayendo
 ///     en su sitio aunque el mapa se dibuje con otra relacion de aspecto.
+///   * Latitud / Longitud son coordenadas GPS reales y pueden ser null si la direccion no
+///     se pudo geocodificar. Nunca se rellenan a partir de MapaX / MapaY.
 ///
 /// NO tiene navigacion a <c>Insumo</c>. El insumo apunta al comedor (Insumo.ComedorId), no al
 /// reves: el kardex duena de su saldo, y dar la vuelta a la relacion ataria los dos modulos.
@@ -130,6 +132,56 @@ public sealed class Comedor : BaseEntity, IAggregateRoot
 
     /// <summary>Posicion vertical del pin, en porcentaje sobre el alto del mapa (0-100).</summary>
     public decimal MapaY { get; private set; }
+
+    /// <summary>
+    /// Latitud GPS real obtenida al geocodificar la direccion. Null si no se pudo ubicar.
+    /// No se deriva de MapaY: son escalas distintas.
+    /// </summary>
+    public decimal? Latitud { get; private set; }
+
+    /// <summary>
+    /// Longitud GPS real obtenida al geocodificar la direccion. Null si no se pudo ubicar.
+    /// No se deriva de MapaX: son escalas distintas.
+    /// </summary>
+    public decimal? Longitud { get; private set; }
+
+    /// <summary>
+    /// Ultima vez que se intento geocodificar la direccion. Se guarda aunque el intento falle
+    /// para no repetir consultas a Nominatim en cada arranque.
+    /// </summary>
+    public DateTimeOffset? GeocodificacionIntentadaEn { get; private set; }
+
+    /// <summary>
+    /// Guarda las coordenadas reales que devolvio el geocodificador. Es el unico punto que
+    /// puede escribir Latitud/Longitud, y valida los rangos geograficos.
+    /// </summary>
+    public void Ubicar(decimal latitud, decimal longitud)
+    {
+        if (latitud is < -90m or > 90m)
+        {
+            throw new DomainException(
+                $"La latitud debe estar entre -90 y 90. Recibido: {latitud}.",
+                nameof(latitud));
+        }
+
+        if (longitud is < -180m or > 180m)
+        {
+            throw new DomainException(
+                $"La longitud debe estar entre -180 y 180. Recibido: {longitud}.",
+                nameof(longitud));
+        }
+
+        Latitud = Math.Round(latitud, 6, MidpointRounding.AwayFromZero);
+        Longitud = Math.Round(longitud, 6, MidpointRounding.AwayFromZero);
+        GeocodificacionIntentadaEn = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    /// Registra que la direccion no se pudo geocodificar. No borra coordenadas previas: si
+    /// ya habia una ubicacion valida, un fallo posterior no debe quitarla.
+    /// </summary>
+    public void MarcarGeocodificacionFallida() =>
+        GeocodificacionIntentadaEn = DateTimeOffset.UtcNow;
 
     /// <summary>
     /// Da de baja al comedor. Es borrado logico: sus movimientos de kardex se conservan,

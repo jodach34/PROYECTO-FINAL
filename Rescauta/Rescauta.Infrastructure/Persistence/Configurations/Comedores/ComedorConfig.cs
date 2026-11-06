@@ -49,6 +49,20 @@ public sealed class ComedorConfig : IEntityTypeConfiguration<Comedor>
             .HasPrecision(5, 2)
             .HasComment("Posicion vertical del pin en el mapa, 0-100.");
 
+        // Coordenadas GPS reales, obtenidas al geocodificar la direccion. Son nullable a
+        // proposito: un comedor sin ubicacion confirmada sigue existiendo en el directorio,
+        // simplemente no se pinta en el mapa. No se derivan de MapaX / MapaY.
+        builder.Property(c => c.Latitud)
+            .HasPrecision(9, 6)
+            .HasComment("Latitud GPS real geocodificada. Null si no se pudo ubicar.");
+
+        builder.Property(c => c.Longitud)
+            .HasPrecision(9, 6)
+            .HasComment("Longitud GPS real geocodificada. Null si no se pudo ubicar.");
+
+        builder.Property(c => c.GeocodificacionIntentadaEn)
+            .HasComment("Ultimo intento de geocodificacion, exitoso o fallido.");
+
         // La relacion se declara desde el lado del comedor (WithMany) porque la navegacion
         // vive en la entidad. El comportamiento de borrado lo fija InsumoConfig, que es
         // donde esta la FK.

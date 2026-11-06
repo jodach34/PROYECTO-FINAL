@@ -12,16 +12,13 @@ public class ComedoresController(RescautaApiClient api) : Controller
 {
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var resultado = await api.ObtenerComedoresAsync(cancellationToken);
+        var mapa = await MapaComedoresLoader.CargarAsync(api, cancellationToken);
 
         ViewData["Title"] = "Directorio de comedores";
         ViewData["MetaDescription"] = "Explora los comedores comunitarios de la red, su nivel de abastecimiento y las raciones que preparan cada día.";
+        ViewData["UsaMapa"] = true;
 
-        return View(new MapaViewModel
-        {
-            Comedores = resultado.Exito ? resultado.Valor! : [],
-            Error = resultado.Exito ? null : resultado.Mensaje
-        });
+        return View(mapa);
     }
 
     public async Task<IActionResult> Detalle(Guid id, CancellationToken cancellationToken)

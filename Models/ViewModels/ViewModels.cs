@@ -14,6 +14,12 @@ public sealed record MapaViewModel
 {
     public IReadOnlyList<ComedorResumen> Comedores { get; init; } = [];
 
+    /// <summary>
+    /// Comedores listos para Leaflet. Se construyen a partir de los mismos datos de la API;
+    /// los que no tienen posicion valida no llegan aqui.
+    /// </summary>
+    public IReadOnlyList<ComedorMapaPunto> PuntosMapa { get; init; } = [];
+
     public string? Error { get; init; }
 
     /// <summary>Total de raciones diarias de los comedores registrados.</summary>
@@ -26,6 +32,27 @@ public sealed record MapaViewModel
     public decimal PromedioAbastecimiento => Comedores.Count == 0
         ? 0m
         : Math.Round(Comedores.Average(c => c.PorcentajeAbastecimiento), 1);
+}
+
+/// <summary>
+/// Un comedor con los datos que necesita un marcador de Leaflet. La direccion viene del
+/// endpoint de detalle y la latitud/longitud son la proyeccion de MapaX/MapaY.
+/// </summary>
+public sealed record ComedorMapaPunto
+{
+    public Guid Id { get; init; }
+
+    public string Nombre { get; init; } = string.Empty;
+
+    public string Direccion { get; init; } = string.Empty;
+
+    public string Distrito { get; init; } = string.Empty;
+
+    public string Estado { get; init; } = string.Empty;
+
+    public double Latitud { get; init; }
+
+    public double Longitud { get; init; }
 }
 
 /// <summary>Panel de Control: metricas de toda la red mas el kardex del comedor elegido.</summary>

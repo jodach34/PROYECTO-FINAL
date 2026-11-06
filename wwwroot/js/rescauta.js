@@ -123,6 +123,7 @@
       const cards = selectAll("[data-comedor]", directory);
       const viewButtons = selectAll("[data-view]", directory);
       const pins = selectAll(".rs-pin", directory);
+      const mapRoot = select("[data-leaflet-map]", directory);
 
       const sync = function () {
         const term = (search ? search.value : "").trim().toLowerCase();
@@ -152,6 +153,17 @@
 
           pin.hidden = !matches;
         });
+
+        if (mapRoot) {
+          const visibleIds = cards
+            .filter(function (card) { return !card.hidden; })
+            .map(function (card) { return card.getAttribute("data-id"); })
+            .filter(Boolean);
+
+          mapRoot.dispatchEvent(new CustomEvent("rescauta:filtro", {
+            detail: { ids: visibleIds }
+          }));
+        }
 
         if (count) {
           count.textContent = visible === 1
@@ -185,6 +197,10 @@
             if (view === "map" && window.innerWidth < 1024) {
               const map = select("[data-directory-map]", directory);
               if (map) map.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+
+            if (mapRoot && view !== "list") {
+              mapRoot.dispatchEvent(new CustomEvent("rescauta:resize"));
             }
           }
         });

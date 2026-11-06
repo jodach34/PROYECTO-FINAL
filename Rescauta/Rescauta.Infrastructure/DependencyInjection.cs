@@ -2,13 +2,16 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Rescauta.Application.Features.Autenticacion;
+using Rescauta.Application.Features.Comedores;
 using Rescauta.Application.Interfaces;
 using Rescauta.Application.Interfaces.Caching;
 using Rescauta.Application.Interfaces.Messaging;
 using Rescauta.Application.Interfaces.RealTime;
 using Rescauta.Infrastructure.Caching;
 using Rescauta.Infrastructure.Email;
+using Rescauta.Infrastructure.Geocodificacion;
 using Rescauta.Infrastructure.Messaging;
 using Rescauta.Infrastructure.Options;
 using Rescauta.Infrastructure.Persistence;
@@ -45,6 +48,28 @@ public static class DependencyInjection
 
         services.AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName));
+
+        services.AddOptions<GeocodificacionOptions>()
+            .Bind(configuration.GetSection(GeocodificacionOptions.SectionName))
+            .Validate(
+                options => !options.Enabled ||
+                           (!string.IsNullOrWhiteSpace(options.BaseUrl) &&
+                            !string.IsNullOrWhiteSpace(options.UserAgent)),
+                "Geocodificacion habilitada requiere BaseUrl y UserAgent.")
+            .ValidateOnStart();
+
+        services.AddHttpClient(NominatimGeocodificador.HttpClientName, (provider, client) =>
+        {
+            var geocodificacion = provider
+                .GetRequiredService<IOptions<GeocodificacionOptions>>()
+                .Value;
+
+            client.Timeout = TimeSpan.FromSeconds(
+                Math.Clamp(geocodificacion.TimeoutSeconds, 1, 30));
+        });
+
+        services.TryAddSingleton<IGeocodificador, NominatimGeocodificador>();
+        services.AddHostedService<GeocodificacionBackfillService>();
 
         services.AddHttpContextAccessor();
         services.AddScoped<AuditableEntityInterceptor>();

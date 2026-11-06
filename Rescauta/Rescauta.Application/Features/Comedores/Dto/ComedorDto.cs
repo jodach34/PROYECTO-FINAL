@@ -96,6 +96,10 @@ public sealed record ComedorResultDto
     public decimal MapaX { get; init; }
 
     public decimal MapaY { get; init; }
+
+    public decimal? Latitud { get; init; }
+
+    public decimal? Longitud { get; init; }
 }
 
 /// <summary>
@@ -116,6 +120,12 @@ public sealed record ComedorResumenDto
     public decimal MapaX { get; init; }
 
     public decimal MapaY { get; init; }
+
+    /// <summary>Latitud GPS real geocodificada. Null si el comedor no se pudo ubicar.</summary>
+    public decimal? Latitud { get; init; }
+
+    /// <summary>Longitud GPS real geocodificada. Null si el comedor no se pudo ubicar.</summary>
+    public decimal? Longitud { get; init; }
 
     /// <summary>Promedio de abastecimiento de todos sus insumos, 0-100.</summary>
     public decimal PorcentajeAbastecimiento { get; init; }
@@ -146,6 +156,10 @@ public sealed record ComedorDetalleDto
     public decimal MapaX { get; init; }
 
     public decimal MapaY { get; init; }
+
+    public decimal? Latitud { get; init; }
+
+    public decimal? Longitud { get; init; }
 
     public decimal PorcentajeAbastecimiento { get; init; }
 
