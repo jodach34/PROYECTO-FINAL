@@ -165,6 +165,16 @@ namespace Rescauta.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("INTEGER");
 
+                    b.Property<decimal?>("LatitudOrigen")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("TEXT")
+                        .HasComment("Latitud GPS del punto de recogida (origen), WGS84.");
+
+                    b.Property<decimal?>("LongitudOrigen")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("TEXT")
+                        .HasComment("Longitud GPS del punto de recogida (origen), WGS84.");
+
                     b.Property<string>("MotivoCierre")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");

@@ -32,6 +32,12 @@ public sealed record RegistrarDonacionDto
 
     /// <summary>Direccion o punto de recojo. Se guarda en la donacion y en el kardex.</summary>
     public string PuntoRecojo { get; init; } = string.Empty;
+
+    /// <summary>Latitud GPS del punto de recogida. Opcional: sin ella no se puede rutear.</summary>
+    public decimal? LatitudOrigen { get; init; }
+
+    /// <summary>Longitud GPS del punto de recogida. Opcional: sin ella no se puede rutear.</summary>
+    public decimal? LongitudOrigen { get; init; }
 }
 
 /// <summary>Motivo obligatorio para cancelar o anular una donacion.</summary>
@@ -85,6 +91,12 @@ public sealed record DonacionResultDto
     public string Donante { get; init; } = string.Empty;
 
     public string? PuntoRecojo { get; init; }
+
+    /// <summary>Latitud GPS del origen. Null cuando no se registro la ubicacion.</summary>
+    public decimal? LatitudOrigen { get; init; }
+
+    /// <summary>Longitud GPS del origen. Null cuando no se registro la ubicacion.</summary>
+    public decimal? LongitudOrigen { get; init; }
 
     /// <summary>Estado actual en texto, para que el cliente no conozca el enum.</summary>
     public string Estado { get; init; } = string.Empty;

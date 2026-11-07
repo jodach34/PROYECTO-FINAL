@@ -103,6 +103,8 @@ public sealed class DonacionService(
                 insumo.UnidadMedida,
                 comedor.Nombre,
                 puntoRecojo: donacion.PuntoRecojo,
+                latitudOrigen: donacion.LatitudOrigen,
+                longitudOrigen: donacion.LongitudOrigen,
                 fechaDonacion: null,
                 usuarioId: usuarioId);
         }
@@ -770,6 +772,8 @@ public sealed class DonacionService(
             UnidadMedida = donacion.UnidadMedida,
             Donante = donacion.Donante,
             PuntoRecojo = donacion.PuntoRecojo,
+            LatitudOrigen = donacion.LatitudOrigen,
+            LongitudOrigen = donacion.LongitudOrigen,
             Estado = donacion.Estado.ToString(),
             FechaDonacion = donacion.FechaDonacion,
             FechaConfirmacion = donacion.FechaConfirmacion,

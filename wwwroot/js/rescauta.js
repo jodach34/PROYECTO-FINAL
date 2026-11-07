@@ -230,6 +230,262 @@
     });
   }
 
+  function initOriginPickers() {
+    selectAll("[data-origin-picker]").forEach(function (picker) {
+      const canvas = select("[data-origin-canvas]", picker);
+      const latInput = select("[data-origin-lat]", picker);
+      const lngInput = select("[data-origin-lng]", picker);
+      const status = select("[data-origin-status]", picker);
+      const clear = select("[data-origin-clear]", picker);
+
+      if (!canvas || !latInput || !lngInput || typeof L === "undefined") {
+        return;
+      }
+
+      const readInput = function (input, limite) {
+        const raw = (input.value || "").trim();
+
+        if (!raw) return null;
+
+        const value = Number(raw);
+
+        return isFinite(value) && Math.abs(value) <= limite ? value : null;
+      };
+
+      const setStatus = function (text) {
+        if (status) status.textContent = text;
+      };
+
+      const leafletMap = L.map(canvas, {
+        scrollWheelZoom: false,
+        minZoom: 5,
+        maxZoom: 19
+      });
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(leafletMap);
+
+      let marker = null;
+
+      const writePoint = function (latlng) {
+        const lat = Number(latlng.lat);
+        const lng = Number(latlng.lng);
+
+        if (!isFinite(lat) || !isFinite(lng) ||
+            Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+          return;
+        }
+
+        latInput.value = lat.toFixed(6);
+        lngInput.value = lng.toFixed(6);
+
+        if (!marker) {
+          marker = L.marker([lat, lng], { draggable: true }).addTo(leafletMap);
+          marker.on("dragend", function () {
+            writePoint(marker.getLatLng());
+          });
+        } else {
+          marker.setLatLng([lat, lng]);
+        }
+
+        setStatus("Ubicación marcada: " + lat.toFixed(5) + ", " + lng.toFixed(5) + ".");
+      };
+
+      leafletMap.on("click", function (event) {
+        writePoint(event.latlng);
+      });
+
+      const lat = readInput(latInput, 90);
+      const lng = readInput(lngInput, 180);
+
+      if (lat !== null && lng !== null && !(lat === 0 && lng === 0)) {
+        writePoint({ lat: lat, lng: lng });
+        leafletMap.setView([lat, lng], 15);
+      } else {
+        leafletMap.setView([-12.0464, -77.0428], 11);
+        setStatus("Sin ubicación marcada. Haz clic en el mapa para marcarla.");
+      }
+
+      if (clear) {
+        clear.addEventListener("click", function () {
+          latInput.value = "";
+          lngInput.value = "";
+
+          if (marker) {
+            leafletMap.removeLayer(marker);
+            marker = null;
+          }
+
+          setStatus("Sin ubicación marcada. Haz clic en el mapa para marcarla.");
+        });
+      }
+
+      window.addEventListener("resize", function () {
+        leafletMap.invalidateSize();
+      });
+
+      window.setTimeout(function () {
+        leafletMap.invalidateSize();
+      }, 250);
+    });
+  }
+
+  function initRouteMaps() {
+    selectAll("[data-route-map]").forEach(function (map) {
+      const canvas = select("[data-route-canvas]", map);
+      const endpoint = map.getAttribute("data-route-endpoint");
+      const status = select("[data-route-status]", map);
+      const panel = map.closest("[data-route-panel]") || map;
+      const alert = select("[data-route-alert]", panel);
+
+      if (!canvas || !endpoint || typeof L === "undefined") {
+        return;
+      }
+
+      const setStatus = function (text) {
+        if (status) status.textContent = text;
+      };
+
+      const showAlert = function (text) {
+        if (!alert) return;
+
+        alert.textContent = text || "";
+        alert.hidden = !text;
+      };
+
+      setStatus("Calculando ruta…");
+
+      const leafletMap = L.map(canvas, {
+        scrollWheelZoom: false,
+        minZoom: 5,
+        maxZoom: 19
+      }).setView([-12.0464, -77.0428], 11);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(leafletMap);
+
+      const layers = L.layerGroup().addTo(leafletMap);
+      const bounds = L.latLngBounds([]);
+
+      const readPoint = function (raw) {
+        if (!raw) return null;
+
+        const lat = Number(raw.lat);
+        const lng = Number(raw.lng);
+
+        if (!isFinite(lat) || !isFinite(lng) ||
+            Math.abs(lat) > 90 || Math.abs(lng) > 180 ||
+            (lat === 0 && lng === 0)) {
+          return null;
+        }
+
+        return { lat: lat, lng: lng, nombre: raw.nombre || "" };
+      };
+
+      const addPoint = function (value, color) {
+        if (!value) return;
+
+        const marker = L.circleMarker([value.lat, value.lng], {
+          radius: 8,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: color,
+          fillOpacity: 1
+        }).addTo(layers);
+
+        marker.bindTooltip(value.nombre || "Punto", { direction: "top", offset: [0, -8] });
+        bounds.extend([value.lat, value.lng]);
+      };
+
+      const formatNumber = function (value, decimals) {
+        const number = Number(value);
+
+        if (!isFinite(number)) return "0";
+
+        return number.toLocaleString("es-PE", {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals
+        });
+      };
+
+      const pintar = function (data) {
+        const origen = readPoint(data.origen);
+        const destino = readPoint(data.destino);
+        const geometria = Array.isArray(data.geometria)
+          ? data.geometria
+            .filter(function (coordenada) {
+              return Array.isArray(coordenada) && coordenada.length >= 2 &&
+                isFinite(Number(coordenada[0])) && isFinite(Number(coordenada[1]));
+            })
+            .map(function (coordenada) {
+              return [Number(coordenada[0]), Number(coordenada[1])];
+            })
+          : [];
+
+        addPoint(origen, "#1b6b4a");
+        addPoint(destino, "#0f3d2e");
+
+        if (data.disponible && geometria.length > 1) {
+          const linea = L.polyline(geometria, {
+            color: "#1b6b4a",
+            weight: 5,
+            opacity: 0.85,
+            lineCap: "round",
+            lineJoin: "round"
+          }).addTo(layers);
+
+          bounds.extend(linea.getBounds());
+        }
+
+        if (bounds.isValid()) {
+          leafletMap.fitBounds(bounds, { padding: [32, 32], maxZoom: 15 });
+        } else if (origen) {
+          leafletMap.setView([origen.lat, origen.lng], 14);
+        } else if (destino) {
+          leafletMap.setView([destino.lat, destino.lng], 14);
+        }
+
+        if (data.disponible) {
+          setStatus("Ruta por carretera: " + formatNumber(data.distanciaKm, 1) +
+            " km · " + formatNumber(data.duracionMinutos, 0) + " min aprox.");
+          showAlert("");
+        } else {
+          setStatus("Ruta no disponible.");
+          showAlert(data.mensaje || "No se pudo calcular la ruta.");
+        }
+      };
+
+      fetch(endpoint, {
+        headers: { "Accept": "application/json" },
+        credentials: "same-origin"
+      })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error("HTTP " + response.status);
+          }
+
+          return response.json();
+        })
+        .then(pintar)
+        .catch(function () {
+          setStatus("Ruta no disponible.");
+          showAlert("No se pudo consultar la ruta. La donación registrada sigue siendo válida.");
+        });
+
+      window.addEventListener("resize", function () {
+        leafletMap.invalidateSize();
+      });
+
+      window.setTimeout(function () {
+        leafletMap.invalidateSize();
+      }, 250);
+    });
+  }
+
   function initDirectory() {
     selectAll("[data-directory]").forEach(function (directory) {
       const search = select("[data-directory-search]", directory);
@@ -320,6 +576,177 @@
     });
   }
 
+  function initProductLookup() {
+    selectAll("[data-product-lookup]").forEach(function (lookup) {
+      const endpoint = lookup.getAttribute("data-product-endpoint");
+      const input = select("[data-barcode-input]", lookup);
+      const button = select("[data-barcode-button]", lookup);
+      const status = select("[data-barcode-status]", lookup);
+      const result = select("[data-barcode-result]", lookup);
+      const form = lookup.closest("form");
+      const nameInput = form ? select("[name='Nombre']", form) : null;
+
+      if (!endpoint || !input || !button) {
+        return;
+      }
+
+      const setStatus = function (text, isError) {
+        if (!status) return;
+
+        status.textContent = text || "";
+        status.hidden = !text;
+        status.style.color = isError ? "#b33a48" : "";
+      };
+
+      const setText = function (selector, value) {
+        const node = result ? select(selector, result) : null;
+
+        if (node) node.textContent = value || "";
+      };
+
+      const setBlock = function (selector, visible) {
+        const node = result ? select(selector, result) : null;
+
+        if (node) node.hidden = !visible;
+      };
+
+      const clearResult = function () {
+        if (!result) return;
+
+        result.hidden = true;
+        setText("[data-product-name]", "");
+        setText("[data-product-brand]", "");
+        setText("[data-product-quantity]", "");
+        setText("[data-product-ingredients]", "");
+        setBlock("[data-product-brand-line]", false);
+        setBlock("[data-product-quantity-line]", false);
+        setBlock("[data-product-ingredients-block]", false);
+        setBlock("[data-product-nutrition-block]", false);
+
+        const image = select("[data-product-image]", result);
+        if (image) {
+          image.hidden = true;
+          image.removeAttribute("src");
+        }
+
+        const nutrition = select("[data-product-nutrition]", result);
+        if (nutrition) nutrition.textContent = "";
+      };
+
+      const render = function (data) {
+        if (!result) return;
+
+        result.hidden = false;
+        setText("[data-product-name]", data.nombre);
+        setText("[data-product-brand]", data.marca);
+        setText("[data-product-quantity]", data.cantidad);
+        setText("[data-product-ingredients]", data.ingredientes);
+
+        setBlock("[data-product-brand-line]", Boolean(data.marca));
+        setBlock("[data-product-quantity-line]", Boolean(data.cantidad));
+        setBlock("[data-product-ingredients-block]", Boolean(data.ingredientes));
+
+        const imagen = select("[data-product-image]", result);
+        if (imagen) {
+          if (data.imagenUrl) {
+            imagen.alt = data.nombre ? "Imagen de " + data.nombre : "Imagen del producto";
+            imagen.onerror = function () {
+              imagen.hidden = true;
+            };
+            imagen.src = data.imagenUrl;
+            imagen.hidden = false;
+          } else {
+            imagen.hidden = true;
+            imagen.removeAttribute("src");
+          }
+        }
+
+        const nutricion = select("[data-product-nutrition]", result);
+        const filas = Array.isArray(data.nutricion) ? data.nutricion : [];
+
+        if (nutricion) {
+          nutricion.textContent = "";
+
+          filas.forEach(function (fila) {
+            const item = document.createElement("li");
+            item.textContent = fila.etiqueta + ": " + fila.valor;
+            nutricion.appendChild(item);
+          });
+        }
+
+        setBlock("[data-product-nutrition-block]", filas.length > 0);
+      };
+
+      const buscar = async function () {
+        if (button.disabled) return;
+
+        const codigo = (input.value || "").replace(/[\s-]/g, "");
+
+        if (!/^[0-9]{8,14}$/.test(codigo)) {
+          clearResult();
+          setStatus("Ingresa un codigo de barras numerico de 8 a 14 digitos.", true);
+          input.focus();
+          return;
+        }
+
+        const textoOriginal = button.textContent;
+
+        button.disabled = true;
+        button.textContent = "Buscando…";
+        setStatus("Consultando Open Food Facts…", false);
+        clearResult();
+
+        try {
+          const respuesta = await fetch(
+            endpoint + "?codigo=" + encodeURIComponent(codigo),
+            {
+              headers: { Accept: "application/json" },
+              credentials: "same-origin"
+            });
+
+          if (!respuesta.ok) {
+            throw new Error("HTTP " + respuesta.status);
+          }
+
+          const data = await respuesta.json();
+
+          if (data && data.encontrado) {
+            if (data.nombre && nameInput) {
+              nameInput.value = data.nombre;
+              nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+
+            render(data);
+            setStatus(data.mensaje || "Producto encontrado. Revisa los datos antes de guardar.", false);
+          } else {
+            clearResult();
+            setStatus(
+              data && data.mensaje
+                ? data.mensaje
+                : "No se encontro el producto. Puedes registrarlo manualmente.",
+              true);
+          }
+        } catch (error) {
+          clearResult();
+          setStatus(
+            "No se pudo conectar con Open Food Facts. Puedes registrar el insumo manualmente.",
+            true);
+        } finally {
+          button.disabled = false;
+          button.textContent = textoOriginal;
+        }
+      };
+
+      button.addEventListener("click", buscar);
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          buscar();
+        }
+      });
+    });
+  }
+
   function initReveal() {
     if (!("IntersectionObserver" in window)) {
       selectAll("[data-reveal]").forEach(function (item) {
@@ -384,6 +811,9 @@
   document.addEventListener("DOMContentLoaded", function () {
     initNavigation();
     initMaps();
+    initOriginPickers();
+    initRouteMaps();
+    initProductLookup();
     initDirectory();
     initReveal();
     initPendingActions();

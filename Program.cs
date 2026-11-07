@@ -142,6 +142,49 @@ builder.Services.AddHttpClient<RescautaApiClient>((servicios, cliente) =>
     cliente.Timeout = TimeSpan.FromSeconds(10);
 });
 
+// Cliente del servicio publico de OSRM. La URL tambien sale de configuracion para poder
+// apuntar a una instancia propia sin recompilar. El timeout es corto a proposito: el mapa
+// de la ruta se pinta igual, solo que sin la linea, y el registro de la donacion nunca
+// depende de esta llamada.
+builder.Services.AddHttpClient<OsrmRouteService>((servicios, cliente) =>
+{
+    var configuracion = servicios.GetRequiredService<IConfiguration>();
+
+    var urlBase = configuracion["Osrm:BaseUrl"];
+
+    if (string.IsNullOrWhiteSpace(urlBase))
+    {
+        urlBase = "https://router.project-osrm.org/";
+    }
+
+    cliente.BaseAddress = new Uri(urlBase);
+    cliente.Timeout = TimeSpan.FromSeconds(8);
+    cliente.DefaultRequestHeaders.UserAgent.ParseAdd("Rescauta/1.0");
+});
+
+builder.Services.AddScoped<RutaDonacionService>();
+
+// Cliente de Open Food Facts para el alta de insumos por codigo de barras. La URL sale de
+// configuracion para poder cambiar de instancia sin recompilar; el valor por defecto es la
+// instancia publica mundial. El timeout es corto: si el servicio no responde, el operador
+// completa el formulario a mano y el registro no se bloquea.
+builder.Services.AddHttpClient<OpenFoodFactsService>((servicios, cliente) =>
+{
+    var configuracion = servicios.GetRequiredService<IConfiguration>();
+
+    var urlBase = configuracion["OpenFoodFacts:BaseUrl"];
+
+    if (string.IsNullOrWhiteSpace(urlBase))
+    {
+        urlBase = "https://world.openfoodfacts.org/";
+    }
+
+    cliente.BaseAddress = new Uri(urlBase);
+    cliente.Timeout = TimeSpan.FromSeconds(10);
+    cliente.DefaultRequestHeaders.UserAgent.ParseAdd("Rescauta/1.0");
+    cliente.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+});
+
 var app = builder.Build();
 
 // En local el comando es uno solo, "dotnet run", pero el proyecto son dos procesos: el MVC

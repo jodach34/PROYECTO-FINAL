@@ -9,6 +9,7 @@
     var estado = donacion?.Estado ?? string.Empty;
     var puedeCerrar = donacion is not null && Presentacion.PuedeCerrarDonacion(estado);
     var puedeEliminar = donacion is not null && Presentacion.PuedeEliminarDonacion(estado);
+    var esCerrada = estado is "Cancelada" or "Anulada";
 }
 
 <div class="rs-page-head">
@@ -211,4 +212,12 @@
             </section>
         </div>
     </div>
+
+    @if (!esCerrada)
+    {
+        @await Html.PartialAsync("_MapaRutaDonacion", new RutaDonacionMapaViewModel
+        {
+            Endpoint = Url.Action("Ruta", "Donaciones", new { id = donacion.DonacionId }) ?? string.Empty
+        })
+    }
 }

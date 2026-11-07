@@ -71,6 +71,8 @@ public sealed class Donacion : BaseEntity, IAggregateRoot
         string unidadMedida,
         string comedorNombre,
         string? puntoRecojo = null,
+        decimal? latitudOrigen = null,
+        decimal? longitudOrigen = null,
         DateTimeOffset? fechaDonacion = null,
         Guid? usuarioId = null)
     {
@@ -113,6 +115,8 @@ public sealed class Donacion : BaseEntity, IAggregateRoot
             "El codigo de seguimiento",
             nameof(codigoSeguimiento));
 
+        ValidarOrigen(latitudOrigen, longitudOrigen);
+
         var fecha = fechaDonacion ?? DateTimeOffset.UtcNow;
 
         return new Donacion
@@ -126,6 +130,8 @@ public sealed class Donacion : BaseEntity, IAggregateRoot
             Donante = donante.Trim(),
             CodigoSeguimiento = codigoSeguimiento.Trim(),
             PuntoRecojo = NormalizarPuntoRecojo(puntoRecojo),
+            LatitudOrigen = latitudOrigen,
+            LongitudOrigen = longitudOrigen,
             FechaDonacion = fecha,
             FechaDonacionUtc = fecha.UtcDateTime,
             Estado = EstadoDonacion.Pendiente,
@@ -150,6 +156,12 @@ public sealed class Donacion : BaseEntity, IAggregateRoot
 
     /// <summary>Punto donde se recogen los insumos. Opcional.</summary>
     public string? PuntoRecojo { get; private set; }
+
+    /// <summary>Latitud GPS del punto de recogida (origen). Null si no se registro.</summary>
+    public decimal? LatitudOrigen { get; private set; }
+
+    /// <summary>Longitud GPS del punto de recogida (origen). Null si no se registro.</summary>
+    public decimal? LongitudOrigen { get; private set; }
 
     /// <summary>Cantidad de unidades del insumo. Siempre mayor que cero.</summary>
     public int Cantidad { get; private set; }
@@ -340,5 +352,45 @@ public sealed class Donacion : BaseEntity, IAggregateRoot
         }
 
         return puntoRecojo.Trim();
+    }
+
+    /// <summary>
+    /// El origen es opcional, pero si se registra tiene que ser una coordenada GPS real:
+    /// ambos valores a la vez y dentro del rango WGS84. No se acepta (0, 0), que es el
+    /// marcador por defecto de una ubicacion no capturada y caeria en el oceano.
+    /// </summary>
+    private static void ValidarOrigen(decimal? latitud, decimal? longitud)
+    {
+        if (latitud is null && longitud is null)
+        {
+            return;
+        }
+
+        if (latitud is null || longitud is null)
+        {
+            throw new DomainException(
+                "Debe indicar la latitud y la longitud del punto de recogida juntas.");
+        }
+
+        if (latitud is < -90m or > 90m)
+        {
+            throw new DomainException(
+                $"La latitud del origen debe estar entre -90 y 90. Recibido: {latitud}.",
+                nameof(latitud));
+        }
+
+        if (longitud is < -180m or > 180m)
+        {
+            throw new DomainException(
+                $"La longitud del origen debe estar entre -180 y 180. Recibido: {longitud}.",
+                nameof(longitud));
+        }
+
+        if (latitud == 0m && longitud == 0m)
+        {
+            throw new DomainException(
+                "El origen no puede estar en la coordenada (0, 0).",
+                nameof(latitud));
+        }
     }
 }

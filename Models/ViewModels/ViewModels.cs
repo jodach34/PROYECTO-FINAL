@@ -124,6 +124,10 @@ public sealed record BancoAlimentosViewModel
 
     public string? PuntoRecojo { get; init; }
 
+    public decimal? LatitudOrigen { get; init; }
+
+    public decimal? LongitudOrigen { get; init; }
+
     public Guid? InsumoId { get; init; }
 
     /// <summary>
@@ -150,6 +154,11 @@ public class DonacionViewModel
     public string Donante { get; set; } = string.Empty;
 
     public string? PuntoRecojo { get; set; }
+
+    // Las coordenadas del origen no se enlazan aqui a proposito: llegan como texto
+    // (OrigenLatitud/OrigenLongitud) y el controlador las lee con InvariantCulture.
+    // Un decimal enlazado por el binder depende de la cultura del servidor y el mapa
+    // siempre escribe el punto decimal.
 }
 
 /// <summary>
@@ -299,4 +308,45 @@ public static class Presentacion
 
     public static bool PuedeEliminarDonacion(string estado) =>
         estado is "Pendiente" or "Cancelada" or "Anulada";
+}
+
+/// <summary>
+/// Parametros del componente de mapa de ruta. El endpoint es la accion MVC que consulta
+/// OSRM; el JavaScript lo llama despues de pintar la pagina, de modo que un fallo del
+/// servicio de rutas nunca bloquea el registro ni la carga de la donacion.
+/// </summary>
+public sealed record RutaDonacionMapaViewModel
+{
+    public string Endpoint { get; init; } = string.Empty;
+}
+
+/// <summary>Respuesta JSON del endpoint de ruta. Los nombres viajan en camelCase.</summary>
+public sealed record RutaDonacionRespuesta
+{
+    public bool Disponible { get; init; }
+
+    /// <summary>sin_origen, sin_destino, osrm_no_disponible, api_no_disponible...</summary>
+    public string? Motivo { get; init; }
+
+    public string Mensaje { get; init; } = string.Empty;
+
+    public double DistanciaKm { get; init; }
+
+    public double DuracionMinutos { get; init; }
+
+    public PuntoRuta? Origen { get; init; }
+
+    public PuntoRuta? Destino { get; init; }
+
+    /// <summary>Puntos [latitud, longitud] listos para L.polyline.</summary>
+    public IReadOnlyList<double[]> Geometria { get; init; } = [];
+}
+
+public sealed record PuntoRuta
+{
+    public double Lat { get; init; }
+
+    public double Lng { get; init; }
+
+    public string Nombre { get; init; } = string.Empty;
 }

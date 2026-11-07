@@ -136,6 +136,13 @@ public sealed class DonacionRegistrada
     public string UnidadMedida { get; set; } = string.Empty;
     public string Donante { get; set; } = string.Empty;
     public string? PuntoRecojo { get; set; }
+
+    /// <summary>Latitud GPS del punto de recogida. Null si no se registro.</summary>
+    public decimal? LatitudOrigen { get; set; }
+
+    /// <summary>Longitud GPS del punto de recogida. Null si no se registro.</summary>
+    public decimal? LongitudOrigen { get; set; }
+
     public string Estado { get; set; } = string.Empty;
     public DateTimeOffset FechaDonacion { get; set; }
     public DateTimeOffset? FechaConfirmacion { get; set; }
@@ -190,6 +197,12 @@ public sealed class DonacionRequest
     public int Cantidad { get; set; }
     public string Donante { get; set; } = string.Empty;
     public string PuntoRecojo { get; set; } = string.Empty;
+
+    /// <summary>Latitud GPS del punto de recogida. Opcional.</summary>
+    public decimal? LatitudOrigen { get; set; }
+
+    /// <summary>Longitud GPS del punto de recogida. Opcional.</summary>
+    public decimal? LongitudOrigen { get; set; }
 }
 
 /// <summary>

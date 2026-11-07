@@ -50,6 +50,16 @@ public sealed class DonacionConfig : IEntityTypeConfiguration<Donacion>
         builder.Property(d => d.PuntoRecojo)
             .HasMaxLength(Donacion.PuntoRecojoMaxLength);
 
+        // Origen GPS opcional. Se guarda con la misma precision que las coordenadas del
+        // comedor para que OSRM reciba puntos comparables en ambos extremos de la ruta.
+        builder.Property(d => d.LatitudOrigen)
+            .HasPrecision(9, 6)
+            .HasComment("Latitud GPS del punto de recogida (origen), WGS84.");
+
+        builder.Property(d => d.LongitudOrigen)
+            .HasPrecision(9, 6)
+            .HasComment("Longitud GPS del punto de recogida (origen), WGS84.");
+
         builder.Property(d => d.Cantidad)
             .IsRequired();
 

@@ -8,7 +8,9 @@ using PROYECTO_FINAL.Services;
 namespace PROYECTO_FINAL.Controllers;
 
 [Authorize(Roles = "Operador,Coordinador,Administrador")]
-public sealed class InventarioController(RescautaApiClient api) : Controller
+public sealed class InventarioController(
+    RescautaApiClient api,
+    OpenFoodFactsService openFoodFacts) : Controller
 {
     private const int LimiteKardex = 20;
 
@@ -17,6 +19,47 @@ public sealed class InventarioController(RescautaApiClient api) : Controller
         var modelo = await CargarAsync(comedorId, cancellationToken);
 
         return View(modelo with { Exito = TempData["Exito"] as string });
+    }
+
+    /// <summary>
+    /// Busca un producto por codigo de barras para autocompletar el formulario de alta.
+    /// Devuelve siempre JSON, incluso ante un error, para que el JavaScript muestre el aviso
+    /// sin recargar la pagina ni bloquear el registro manual.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> BuscarProducto(
+        string? codigo,
+        CancellationToken cancellationToken)
+    {
+        var resultado = await openFoodFacts.BuscarPorCodigoAsync(codigo, cancellationToken);
+
+        if (!resultado.Exito)
+        {
+            return Json(new ProductoBarcodeRespuesta
+            {
+                Encontrado = false,
+                Motivo = resultado.Codigo,
+                Mensaje = resultado.Mensaje
+                    ?? "No se pudo consultar el producto. Puedes registrarlo manualmente."
+            });
+        }
+
+        var producto = resultado.Valor!;
+
+        return Json(new ProductoBarcodeRespuesta
+        {
+            Encontrado = true,
+            Codigo = producto.Codigo,
+            Nombre = producto.Nombre,
+            Marca = producto.Marca,
+            Cantidad = producto.Cantidad,
+            Ingredientes = producto.Ingredientes,
+            ImagenUrl = producto.ImagenUrl,
+            Nutricion = producto.Nutricion,
+            Mensaje = string.IsNullOrWhiteSpace(producto.Nombre)
+                ? "Producto encontrado, pero Open Food Facts no trae su nombre. Completa el campo manualmente."
+                : "Producto encontrado. Revisa los datos antes de guardar."
+        });
     }
 
     [HttpPost]
