@@ -747,6 +747,249 @@
     });
   }
 
+  function initChatbot() {
+    const root = select("[data-chatbot]");
+
+    if (!root) return;
+
+    const panel = select("[data-chatbot-panel]", root);
+    const toggle = select("[data-chatbot-toggle]", root);
+    const close = select("[data-chatbot-close]", root);
+    const messages = select("[data-chatbot-messages]", root);
+    const form = select("[data-chatbot-form]", root);
+    const input = select("[data-chatbot-input]", root);
+
+    if (!panel || !toggle || !messages || !form || !input) return;
+
+    const normalizar = function (texto) {
+      return (texto || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    };
+
+    const reglas = [
+      {
+        claves: [
+          "seguimiento",
+          "seguir",
+          "rastrear",
+          "tracking",
+          "consultar donacion",
+          "consultar una donacion",
+          "estado de la donacion",
+          "estado de mi donacion"
+        ],
+        respuesta: "Entra a «Seguimiento», escribe el código de tu donación (por ejemplo, DON-2026-00042) y pulsa consultar. Verás el estado, el comedor de destino y el detalle del insumo."
+      },
+      {
+        claves: [
+          "confirmar",
+          "confirmo",
+          "recepcion",
+          "recibir",
+          "aceptar",
+          "ingresar stock"
+        ],
+        respuesta: "Abre «Gestionar donaciones», busca la donación y entra en «Ver». Desde el detalle usa «Confirmar recepción e ingresar stock»; luego podrás marcar «En tránsito» y «Entregada» según avance el proceso."
+      },
+      {
+        claves: [
+          "inventario",
+          "insumo",
+          "registrar alimento",
+          "registrar alimentos",
+          "agregar alimento",
+          "agregar insumo",
+          "stock",
+          "despensa",
+          "codigo de barras"
+        ],
+        respuesta: "Entra a «Inventario», selecciona un comedor y usa «Registrar insumo». Completa nombre, unidad, stock inicial y stock máximo. Si tienes el código de barras, usa «Buscar producto» para autocompletar el nombre."
+      },
+      {
+        claves: [
+          "kardex",
+          "movimiento",
+          "movimientos",
+          "entrada",
+          "entradas",
+          "salida",
+          "salidas",
+          "historial"
+        ],
+        respuesta: "El Kardex está en «Resumen», en el panel «Kardex reciente», y también en «Inventario» como «Movimientos recientes». Allí verás entradas, salidas, cantidades, responsable y fecha."
+      },
+      {
+        claves: [
+          "donacion",
+          "donar",
+          "donante",
+          "aporte",
+          "registrar donacion",
+          "registro de donacion"
+        ],
+        respuesta: "Abre «Registrar donación» en el menú lateral. Elige el insumo y el comedor, indica cantidad, donante y punto de recogida; si marcas la ubicación en el mapa se calcula la ruta. Al guardar recibirás un código DON-... para seguimiento."
+      },
+      {
+        claves: [
+          "comedor",
+          "mapa",
+          "ruta",
+          "ubicacion",
+          "direccion"
+        ],
+        respuesta: "En «Comedores» puedes ver el directorio, el nivel de abastecimiento y el detalle de cada comedor. Si buscas una ruta, abre «Seguimiento» y consulta una donación con código para ver el mapa y la distancia."
+      },
+      {
+        claves: [
+          "cuenta",
+          "contrasena",
+          "clave",
+          "login",
+          "iniciar sesion",
+          "acceder",
+          "usuario"
+        ],
+        respuesta: "En «Mi cuenta» puedes revisar tus datos. Si olvidaste la contraseña, usa «¿Olvidaste tu contraseña?» en el inicio de sesión o pide apoyo a un administrador."
+      },
+      {
+        claves: [
+          "hola",
+          "buenas",
+          "buenos dias",
+          "buenas tardes",
+          "buenas noches",
+          "hey",
+          "saludos"
+        ],
+        respuesta: "¡Hola! Puedo ayudarte con donaciones, recepción, inventario, Kardex y seguimiento. Elige una pregunta frecuente o escríbeme tu duda."
+      },
+      {
+        claves: [
+          "gracias",
+          "agradezco"
+        ],
+        respuesta: "¡Con gusto! Si necesitas otra cosa, aquí estoy."
+      }
+    ];
+
+    const responder = function (texto) {
+      const codigo = (texto.match(/DON[-\s]?\d{4}[-\s]?\d{3,6}/i) || [])[0];
+
+      if (codigo) {
+        return "Ese parece un código de seguimiento. Entra a «Seguimiento», pégalo en el campo «Código de seguimiento» y pulsa consultar para ver el estado de la donación.";
+      }
+
+      const textoNormalizado = normalizar(texto);
+
+      for (let i = 0; i < reglas.length; i += 1) {
+        const regla = reglas[i];
+
+        for (let j = 0; j < regla.claves.length; j += 1) {
+          if (textoNormalizado.indexOf(normalizar(regla.claves[j])) !== -1) {
+            return regla.respuesta;
+          }
+        }
+      }
+
+      return "No tengo una respuesta exacta para eso. Puedo ayudarte con donaciones, recepción, inventario, Kardex o seguimiento. Prueba con una de las preguntas frecuentes.";
+    };
+
+    const scrollToEnd = function () {
+      messages.scrollTop = messages.scrollHeight;
+    };
+
+    const appendMessage = function (texto, autor) {
+      const wrapper = document.createElement("div");
+      const bubble = document.createElement("span");
+
+      wrapper.className = "rs-chatbot__message rs-chatbot__message--" + autor;
+      bubble.className = "rs-chatbot__bubble";
+      bubble.textContent = texto;
+      wrapper.appendChild(bubble);
+      messages.appendChild(wrapper);
+      scrollToEnd();
+    };
+
+    const preguntar = function (texto, opciones) {
+      const limpio = (texto || "").trim();
+
+      if (!limpio) return;
+
+      appendMessage(limpio, "user");
+      appendMessage(responder(limpio), "bot");
+
+      if (!opciones || opciones.focusInput !== false) {
+        input.focus();
+      }
+    };
+
+    const abrir = function () {
+      panel.hidden = false;
+      toggle.setAttribute("aria-expanded", "true");
+      scrollToEnd();
+
+      window.setTimeout(function () {
+        input.focus();
+      }, 60);
+    };
+
+    const cerrar = function (opciones) {
+      if (panel.hidden) return;
+
+      panel.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+
+      if (opciones && opciones.focusToggle) {
+        toggle.focus();
+      }
+    };
+
+    toggle.addEventListener("click", function () {
+      if (panel.hidden) {
+        abrir();
+      } else {
+        cerrar();
+      }
+    });
+
+    if (close) {
+      close.addEventListener("click", function () {
+        cerrar({ focusToggle: true });
+      });
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+
+      const texto = input.value.trim();
+
+      if (!texto) {
+        input.focus();
+        return;
+      }
+
+      input.value = "";
+      preguntar(texto);
+    });
+
+    selectAll("[data-chatbot-question]", root).forEach(function (button) {
+      button.addEventListener("click", function () {
+        preguntar(button.getAttribute("data-chatbot-question"), { focusInput: false });
+      });
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        cerrar({ focusToggle: true });
+      }
+    });
+  }
+
   function initReveal() {
     if (!("IntersectionObserver" in window)) {
       selectAll("[data-reveal]").forEach(function (item) {
@@ -814,6 +1057,7 @@
     initOriginPickers();
     initRouteMaps();
     initProductLookup();
+    initChatbot();
     initDirectory();
     initReveal();
     initPendingActions();
