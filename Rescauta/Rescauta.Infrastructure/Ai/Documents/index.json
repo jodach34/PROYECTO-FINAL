@@ -1,0 +1,38 @@
+[
+  {
+    "source": "como-funciona",
+    "file": "como-funciona.md",
+    "title": "Cómo funciona Rescauta",
+    "category": "como-funciona"
+  },
+  {
+    "source": "nosotros",
+    "file": "nosotros.md",
+    "title": "Nosotros",
+    "category": "institucional"
+  },
+  {
+    "source": "donaciones",
+    "file": "donaciones.md",
+    "title": "Donaciones",
+    "category": "donaciones"
+  },
+  {
+    "source": "contacto",
+    "file": "contacto.md",
+    "title": "Contacto",
+    "category": "contacto"
+  },
+  {
+    "source": "privacidad",
+    "file": "privacidad.md",
+    "title": "Privacidad",
+    "category": "privacidad"
+  },
+  {
+    "source": "preguntas-frecuentes",
+    "file": "preguntas-frecuentes.md",
+    "title": "Preguntas frecuentes",
+    "category": "ayuda"
+  }
+]

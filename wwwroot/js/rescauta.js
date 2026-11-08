@@ -761,146 +761,25 @@
 
     if (!panel || !toggle || !messages || !form || !input) return;
 
-    const normalizar = function (texto) {
-      return (texto || "")
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9\s]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    };
-
-    const reglas = [
-      {
-        claves: [
-          "seguimiento",
-          "seguir",
-          "rastrear",
-          "tracking",
-          "consultar donacion",
-          "consultar una donacion",
-          "estado de la donacion",
-          "estado de mi donacion"
-        ],
-        respuesta: "Entra a «Seguimiento», escribe el código de tu donación (por ejemplo, DON-2026-00042) y pulsa consultar. Verás el estado, el comedor de destino y el detalle del insumo."
-      },
-      {
-        claves: [
-          "confirmar",
-          "confirmo",
-          "recepcion",
-          "recibir",
-          "aceptar",
-          "ingresar stock"
-        ],
-        respuesta: "Abre «Gestionar donaciones», busca la donación y entra en «Ver». Desde el detalle usa «Confirmar recepción e ingresar stock»; luego podrás marcar «En tránsito» y «Entregada» según avance el proceso."
-      },
-      {
-        claves: [
-          "inventario",
-          "insumo",
-          "registrar alimento",
-          "registrar alimentos",
-          "agregar alimento",
-          "agregar insumo",
-          "stock",
-          "despensa",
-          "codigo de barras"
-        ],
-        respuesta: "Entra a «Inventario», selecciona un comedor y usa «Registrar insumo». Completa nombre, unidad, stock inicial y stock máximo. Si tienes el código de barras, usa «Buscar producto» para autocompletar el nombre."
-      },
-      {
-        claves: [
-          "kardex",
-          "movimiento",
-          "movimientos",
-          "entrada",
-          "entradas",
-          "salida",
-          "salidas",
-          "historial"
-        ],
-        respuesta: "El Kardex está en «Resumen», en el panel «Kardex reciente», y también en «Inventario» como «Movimientos recientes». Allí verás entradas, salidas, cantidades, responsable y fecha."
-      },
-      {
-        claves: [
-          "donacion",
-          "donar",
-          "donante",
-          "aporte",
-          "registrar donacion",
-          "registro de donacion"
-        ],
-        respuesta: "Abre «Registrar donación» en el menú lateral. Elige el insumo y el comedor, indica cantidad, donante y punto de recogida; si marcas la ubicación en el mapa se calcula la ruta. Al guardar recibirás un código DON-... para seguimiento."
-      },
-      {
-        claves: [
-          "comedor",
-          "mapa",
-          "ruta",
-          "ubicacion",
-          "direccion"
-        ],
-        respuesta: "En «Comedores» puedes ver el directorio, el nivel de abastecimiento y el detalle de cada comedor. Si buscas una ruta, abre «Seguimiento» y consulta una donación con código para ver el mapa y la distancia."
-      },
-      {
-        claves: [
-          "cuenta",
-          "contrasena",
-          "clave",
-          "login",
-          "iniciar sesion",
-          "acceder",
-          "usuario"
-        ],
-        respuesta: "En «Mi cuenta» puedes revisar tus datos. Si olvidaste la contraseña, usa «¿Olvidaste tu contraseña?» en el inicio de sesión o pide apoyo a un administrador."
-      },
-      {
-        claves: [
-          "hola",
-          "buenas",
-          "buenos dias",
-          "buenas tardes",
-          "buenas noches",
-          "hey",
-          "saludos"
-        ],
-        respuesta: "¡Hola! Puedo ayudarte con donaciones, recepción, inventario, Kardex y seguimiento. Elige una pregunta frecuente o escríbeme tu duda."
-      },
-      {
-        claves: [
-          "gracias",
-          "agradezco"
-        ],
-        respuesta: "¡Con gusto! Si necesitas otra cosa, aquí estoy."
-      }
-    ];
-
-    const responder = function (texto) {
-      const codigo = (texto.match(/DON[-\s]?\d{4}[-\s]?\d{3,6}/i) || [])[0];
-
-      if (codigo) {
-        return "Ese parece un código de seguimiento. Entra a «Seguimiento», pégalo en el campo «Código de seguimiento» y pulsa consultar para ver el estado de la donación.";
-      }
-
-      const textoNormalizado = normalizar(texto);
-
-      for (let i = 0; i < reglas.length; i += 1) {
-        const regla = reglas[i];
-
-        for (let j = 0; j < regla.claves.length; j += 1) {
-          if (textoNormalizado.indexOf(normalizar(regla.claves[j])) !== -1) {
-            return regla.respuesta;
-          }
-        }
-      }
-
-      return "No tengo una respuesta exacta para eso. Puedo ayudarte con donaciones, recepción, inventario, Kardex o seguimiento. Prueba con una de las preguntas frecuentes.";
-    };
-
     const scrollToEnd = function () {
       messages.scrollTop = messages.scrollHeight;
+    };
+
+    const endpoint = root.getAttribute("data-chatbot-endpoint");
+    const status = select("[data-chatbot-status]", root);
+    const retry = select("[data-chatbot-retry]", root);
+    const cancel = select("[data-chatbot-cancel]", root);
+    const send = select("[type='submit']", form);
+    const antiforgery = select("input[name='__RequestVerificationToken']", root);
+    let activeRequest = null;
+    let lastFailedQuestion = null;
+    let requestSequence = 0;
+
+    const setStatus = function (texto, visible) {
+      if (!status) return;
+
+      status.textContent = texto || "";
+      status.hidden = !visible;
     };
 
     const appendMessage = function (texto, autor) {
@@ -913,19 +792,147 @@
       wrapper.appendChild(bubble);
       messages.appendChild(wrapper);
       scrollToEnd();
+      return wrapper;
+    };
+
+    const renderSources = function (wrapper, fuentes) {
+      if (!Array.isArray(fuentes) || fuentes.length === 0) return;
+
+      const heading = document.createElement("strong");
+      heading.textContent = "Fuentes";
+
+      const list = document.createElement("ul");
+      list.className = "rs-chatbot__sources";
+
+      fuentes.forEach(function (fuente) {
+        const item = document.createElement("li");
+        const title = fuente.titulo || fuente.fuente || "Fuente documental";
+        item.textContent = fuente.id ? fuente.id + ": " + title : title;
+        list.appendChild(item);
+      });
+
+      wrapper.appendChild(heading);
+      wrapper.appendChild(list);
+    };
+
+    const renderResponse = function (wrapper, data) {
+      const bubble = select(".rs-chatbot__bubble", wrapper);
+      if (!bubble) return;
+
+      bubble.textContent = data && data.respuesta
+        ? data.respuesta
+        : "No se encontró información suficiente para responder.";
+
+      const oldSources = select(".rs-chatbot__sources", wrapper);
+      if (oldSources) oldSources.remove();
+
+      const oldHeading = select("strong", wrapper);
+      if (oldHeading) oldHeading.remove();
+
+      renderSources(wrapper, data ? data.fuentes : []);
+    };
+
+    const setBusy = function (busy) {
+      input.disabled = busy;
+      if (send) send.disabled = busy;
+      if (cancel) cancel.hidden = !busy;
+      if (retry && busy) retry.hidden = true;
+    };
+
+    const errorMessage = function (response, payload) {
+      if (payload && payload.mensaje) return payload.mensaje;
+
+      if (response.status === 429) {
+        return "El asistente está recibiendo muchas solicitudes. Intenta nuevamente en unos segundos.";
+      }
+
+      if (response.status === 504) {
+        return "El asistente tardó demasiado en responder. Intenta nuevamente.";
+      }
+
+      return "El asistente no está disponible en este momento. Intenta nuevamente.";
+    };
+
+    const executeQuestion = async function (question, userMessage, botMessage) {
+      if (!endpoint || activeRequest) return;
+
+      const controller = new AbortController();
+      const requestId = ++requestSequence;
+      activeRequest = { controller: controller, requestId: requestId };
+      lastFailedQuestion = null;
+      setBusy(true);
+      setStatus("Consultando al asistente...", true);
+
+      const botBubble = select(".rs-chatbot__bubble", botMessage);
+      if (botBubble) botBubble.textContent = "Consultando...";
+
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "RequestVerificationToken": antiforgery ? antiforgery.value : ""
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({ pregunta: question }),
+          signal: controller.signal
+        });
+
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch (parseError) {
+          payload = null;
+        }
+
+        if (!response.ok) {
+          const failure = new Error(errorMessage(response, payload));
+          failure.status = response.status;
+          throw failure;
+        }
+
+        renderResponse(botMessage, payload);
+        setStatus(payload && payload.suficienteInformacion === false
+          ? "La respuesta no contiene información suficiente."
+          : "", Boolean(payload && payload.suficienteInformacion === false));
+        if (retry) retry.hidden = true;
+      } catch (error) {
+        if (controller.signal.aborted) {
+          if (botBubble) botBubble.textContent = "Consulta cancelada.";
+          setStatus("Consulta cancelada.", true);
+          return;
+        }
+
+        if (requestId !== requestSequence) return;
+
+        if (botBubble) botBubble.textContent = error.message || "No se pudo completar la consulta.";
+        lastFailedQuestion = {
+          question: question,
+          userMessage: userMessage,
+          botMessage: botMessage
+        };
+        setStatus("No se pudo completar la consulta.", true);
+        if (retry) retry.hidden = false;
+      } finally {
+        if (activeRequest && activeRequest.requestId === requestId) {
+          activeRequest = null;
+          setBusy(false);
+        }
+      }
     };
 
     const preguntar = function (texto, opciones) {
       const limpio = (texto || "").trim();
 
-      if (!limpio) return;
+      if (!limpio || activeRequest) return;
 
-      appendMessage(limpio, "user");
-      appendMessage(responder(limpio), "bot");
+      const userMessage = appendMessage(limpio, "user");
+      const botMessage = appendMessage("Consultando...", "bot");
+      input.value = "";
+      executeQuestion(limpio, userMessage, botMessage);
 
-      if (!opciones || opciones.focusInput !== false) {
-        input.focus();
-      }
+      if (!opciones || opciones.focusInput !== false) input.focus();
     };
 
     const abrir = function () {
@@ -973,9 +980,25 @@
         return;
       }
 
-      input.value = "";
       preguntar(texto);
     });
+
+    if (cancel) {
+      cancel.addEventListener("click", function () {
+        if (activeRequest) activeRequest.controller.abort();
+      });
+    }
+
+    if (retry) {
+      retry.addEventListener("click", function () {
+        if (!lastFailedQuestion || activeRequest) return;
+
+        executeQuestion(
+          lastFailedQuestion.question,
+          lastFailedQuestion.userMessage,
+          lastFailedQuestion.botMessage);
+      });
+    }
 
     selectAll("[data-chatbot-question]", root).forEach(function (button) {
       button.addEventListener("click", function () {

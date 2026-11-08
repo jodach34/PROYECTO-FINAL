@@ -142,6 +142,23 @@ builder.Services.AddHttpClient<RescautaApiClient>((servicios, cliente) =>
     cliente.Timeout = TimeSpan.FromSeconds(10);
 });
 
+// Cliente independiente para el chatbot RAG. Su timeout no altera el cliente general
+// de Rescauta, cuyos endpoints conservan el límite de 10 segundos.
+builder.Services.AddHttpClient<ChatbotApiClient>((servicios, cliente) =>
+{
+    var configuracion = servicios.GetRequiredService<IConfiguration>();
+    var urlBase = configuracion["Api:BaseUrl"];
+
+    if (string.IsNullOrWhiteSpace(urlBase))
+    {
+        throw new InvalidOperationException(
+            "Falta Api:BaseUrl en appsettings.json. Sin ella el MVC no sabe donde esta la API.");
+    }
+
+    cliente.BaseAddress = new Uri(urlBase);
+    cliente.Timeout = TimeSpan.FromSeconds(60);
+});
+
 // Cliente del servicio publico de OSRM. La URL tambien sale de configuracion para poder
 // apuntar a una instancia propia sin recompilar. El timeout es corto a proposito: el mapa
 // de la ruta se pinta igual, solo que sin la linea, y el registro de la donacion nunca

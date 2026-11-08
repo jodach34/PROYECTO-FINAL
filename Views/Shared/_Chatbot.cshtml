@@ -9,7 +9,7 @@
     };
 }
 
-<div class="rs-chatbot" data-chatbot>
+<div class="rs-chatbot" data-chatbot data-chatbot-endpoint="/Chatbot/Preguntar">
     <section class="rs-chatbot__panel"
              id="chatbot-rescauta"
              role="dialog"
@@ -42,6 +42,11 @@
                 <span class="rs-chatbot__bubble">¡Hola! Soy el asistente de Rescauta. ¿En qué puedo ayudarte?</span>
             </div>
         </div>
+
+        @Html.AntiForgeryToken()
+        <p class="rs-chatbot__status" data-chatbot-status role="status" aria-live="polite" hidden></p>
+        <button class="rs-chatbot__retry" type="button" data-chatbot-retry hidden>Reintentar</button>
+        <button class="rs-chatbot__cancel" type="button" data-chatbot-cancel hidden>Cancelar</button>
 
         <div class="rs-chatbot__suggestions" aria-label="Preguntas frecuentes">
             <p class="rs-chatbot__suggestions-label">Preguntas frecuentes</p>

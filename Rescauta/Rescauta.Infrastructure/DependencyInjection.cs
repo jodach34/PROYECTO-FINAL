@@ -2,11 +2,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+using Rescauta.Application.Features.Ai.Models;
 using Rescauta.Application.Features.Autenticacion;
 using Rescauta.Application.Interfaces;
+using Rescauta.Application.Interfaces.Ai;
 using Rescauta.Application.Interfaces.Caching;
 using Rescauta.Application.Interfaces.Messaging;
 using Rescauta.Application.Interfaces.RealTime;
+using Rescauta.Infrastructure.Ai;
 using Rescauta.Infrastructure.Caching;
 using Rescauta.Infrastructure.Email;
 using Rescauta.Infrastructure.Messaging;
@@ -46,6 +50,8 @@ public static class DependencyInjection
         services.AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName));
 
+        AddAiClients(services, configuration);
+
         services.AddHttpContextAccessor();
         services.AddScoped<AuditableEntityInterceptor>();
         services.AddSingleton<CacheKeyRegistry>();
@@ -67,6 +73,55 @@ public static class DependencyInjection
             ConfigureDatabase(options, configuration, provider));
 
         return services;
+    }
+
+    /// <summary>
+    /// Registra los clientes HTTP tipados del chatbot (Gemini y Qdrant).
+    ///
+    /// No se usa ValidateOnStart a proposito: la API debe arrancar sin claves de IA para
+    /// que el resto del sistema y el chatbot actual sigan funcionando. Si falta una clave,
+    /// el cliente lo reporta en su comprobacion de conectividad, sin tumbar el proceso.
+    ///
+    /// La ApiKey nunca se guarda en appsettings.json: se enlaza desde user-secrets o desde
+    /// las variables de entorno Gemini__ApiKey / Qdrant__ApiKey (ver README y render.yaml).
+    /// </summary>
+    private static void AddAiClients(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<GeminiOptions>()
+            .Bind(configuration.GetSection(GeminiOptions.SectionName));
+
+        services.AddOptions<QdrantOptions>()
+            .Bind(configuration.GetSection(QdrantOptions.SectionName));
+
+        services.AddOptions<AiIndexingOptions>()
+            .Bind(configuration.GetSection(AiIndexingOptions.SectionName));
+
+        services.AddOptions<AiRagOptions>()
+            .Bind(configuration.GetSection(AiRagOptions.SectionName));
+
+        // La comprobación de secretos necesita conocer las claves, pero Application
+        // solo consume la abstracción ISecretRedactor.
+        services.TryAddSingleton<ISecretRedactor, ConfiguredSecretRedactor>();
+
+        // Los documentos institucionales son estáticos y de solo lectura: un singleton
+        // evita releer los recursos embebidos en cada petición de indexación.
+        services.TryAddSingleton<IDocumentSourceProvider, MarkdownDocumentSourceProvider>();
+
+        services.AddHttpClient<IGeminiClient, GeminiClient>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<IOptions<GeminiOptions>>().Value;
+
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        });
+
+        services.AddHttpClient<IQdrantClient, QdrantClient>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<IOptions<QdrantOptions>>().Value;
+
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        });
     }
 
     /// <summary>

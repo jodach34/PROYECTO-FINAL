@@ -5,6 +5,7 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Rescauta.Application.Common;
+using Rescauta.Application.Features.Ai;
 using Rescauta.Application.Features.Autenticacion;
 using Rescauta.Application.Features.Comedores;
 using Rescauta.Application.Features.Donaciones;
@@ -13,6 +14,7 @@ using Rescauta.Application.Features.Kardex;
 using Rescauta.Application.Features.Reportes;
 using Rescauta.Application.Features.Usuarios;
 using Rescauta.Application.Interfaces;
+using Rescauta.Application.Interfaces.Ai;
 using Rescauta.Application.Services;
 
 namespace Rescauta.Application;
@@ -52,6 +54,21 @@ public static class DependencyInjection
         services.TryAddScoped<IReporteService, ReporteService>();
         services.TryAddScoped<IAutenticacionService, AutenticacionService>();
         services.TryAddScoped<IUsuarioAdminService, UsuarioAdminService>();
+
+        // Indexación documental del RAG: el proveedor de documentos y los clientes de
+        // Gemini/Qdrant viven en Infrastructure; el chunker y el orquestador aquí.
+        services.TryAddScoped<IDocumentChunker, DocumentChunker>();
+        services.TryAddScoped<IDocumentIndexer, DocumentIndexingService>();
+
+        // Motor RAG público: recuperación de solo lectura, contexto, prompt y generación.
+        // El límite de concurrencia es singleton para proteger la cuota de Gemini.
+        services.TryAddScoped<IRagRetriever, RagRetriever>();
+        services.TryAddScoped<IRagContextBuilder, RagContextBuilder>();
+        services.TryAddScoped<IRagPromptBuilder, RagPromptBuilder>();
+        services.TryAddScoped<IChatbotPublicDataProvider, ChatbotPublicDataProvider>();
+        services.TryAddSingleton<ChatbotQuestionRouter>();
+        services.TryAddScoped<IRagAnswerService, RagAnswerService>();
+        services.TryAddSingleton<RagConcurrencyGate>();
 
         // IKardexService se registro junto a los otros dos. Antes no estaba en ninguna parte
         // y el endpoint POST /api/v1/kardex/movimiento devolvia 500 con "Unable to resolve
