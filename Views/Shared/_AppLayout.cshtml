@@ -183,6 +183,7 @@
         </div>
     </div>
 
+    @await Html.PartialAsync("_Chatbot")
     <script src="~/js/rescauta.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", false)
 </body>
