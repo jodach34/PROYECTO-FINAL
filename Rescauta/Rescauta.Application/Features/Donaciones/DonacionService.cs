@@ -139,9 +139,9 @@ public sealed class DonacionService(
         var resultado = Mapear(entidad, insumo.StockActual);
 
         logger.LogInformation(
-            "Donacion registrada en estado Pendiente. Codigo={Codigo}, Comedor={Comedor}, " +
+            "Donacion registrada en estado Pendiente. DonacionId={DonacionId}, Comedor={Comedor}, " +
             "Insumo={Insumo}, Cantidad={Cantidad}",
-            entidad.CodigoSeguimiento,
+            entidad.Id,
             comedor.Nombre,
             insumo.Nombre,
             entidad.Cantidad);
@@ -222,37 +222,59 @@ public sealed class DonacionService(
             filas.Select(d => Mapear(d, 0m)).ToList());
     }
 
-    public async Task<Result<DonacionResultDto>> ObtenerPorCodigoAsync(
+    public async Task<Result<SeguimientoDonacionPublicoDto>> ObtenerPorCodigoAsync(
         string codigo,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(codigo))
         {
-            return Result<DonacionResultDto>.Failure(
+            return Result<SeguimientoDonacionPublicoDto>.Failure(
                 DonacionErrorCodes.Validacion,
                 "Escribe el codigo de seguimiento de tu donacion.");
         }
 
         var normalizado = codigo.Trim().ToUpperInvariant();
 
-        var entidad = await dbContext
-            .Set<Donacion>()
-            .AsNoTracking()
-            .FirstOrDefaultAsync(
-                d => d.CodigoSeguimiento == normalizado && !d.IsDeleted,
-                cancellationToken);
-
-        if (entidad is null)
+        if (!TieneFormatoCodigoSeguimiento(normalizado))
         {
-            return Result<DonacionResultDto>.Failure(
+            return Result<SeguimientoDonacionPublicoDto>.Failure(
                 DonacionErrorCodes.DonacionNoEncontrada,
-                $"No encontramos una donacion con el codigo {normalizado}. " +
-                "Revisa que este bien escrito o contacta a la coordinacion.");
+                "No encontramos una donacion con ese codigo. Revisa que este bien escrito.");
         }
 
-        var stock = await ObtenerStockAsync(entidad.InsumoId, cancellationToken);
+        var datos = await dbContext
+            .Set<Donacion>()
+            .AsNoTracking()
+            .Where(d => d.CodigoSeguimiento == normalizado && !d.IsDeleted)
+            .Select(d => new
+            {
+                d.CodigoSeguimiento,
+                d.InsumoNombre,
+                d.ComedorNombre,
+                d.Cantidad,
+                d.UnidadMedida,
+                d.Estado,
+                d.FechaDonacion
+            })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        return Result<DonacionResultDto>.Success(Mapear(entidad, stock));
+        if (datos is null)
+        {
+            return Result<SeguimientoDonacionPublicoDto>.Failure(
+                DonacionErrorCodes.DonacionNoEncontrada,
+                "No encontramos una donacion con ese codigo. Revisa que este bien escrito o contacta a la coordinacion.");
+        }
+
+        return Result<SeguimientoDonacionPublicoDto>.Success(new SeguimientoDonacionPublicoDto
+        {
+            CodigoSeguimiento = datos.CodigoSeguimiento,
+            InsumoNombre = datos.InsumoNombre,
+            ComedorNombre = datos.ComedorNombre,
+            Cantidad = datos.Cantidad,
+            UnidadMedida = datos.UnidadMedida,
+            Estado = datos.Estado.ToString(),
+            FechaDonacion = datos.FechaDonacion
+        });
     }
 
     public async Task<Result<PagedResult<DonacionResultDto>>> BuscarAsync(
@@ -717,9 +739,9 @@ public sealed class DonacionService(
         }
 
         logger.LogInformation(
-            "Donacion {Accion}. Codigo={Codigo}, EstadoAnterior={EstadoAnterior}, EstadoNuevo={EstadoNuevo}",
+            "Donacion {Accion}. DonacionId={DonacionId}, EstadoAnterior={EstadoAnterior}, EstadoNuevo={EstadoNuevo}",
             accion,
-            donacion.CodigoSeguimiento,
+            donacionId,
             estadoAnterior,
             donacion.Estado);
 
@@ -833,6 +855,13 @@ public sealed class DonacionService(
         var numero = Random.Shared.Next(1, 100_000);
         return $"{PrefijoCodigo}-{DateTimeOffset.UtcNow.Year}-{numero:D5}";
     }
+
+    private static bool TieneFormatoCodigoSeguimiento(string codigo) =>
+        codigo.Length == 14 &&
+        codigo.StartsWith("DON-", StringComparison.Ordinal) &&
+        codigo[8] == '-' &&
+        codigo.Substring(4, 4).All(char.IsAsciiDigit) &&
+        codigo.Substring(9, 5).All(char.IsAsciiDigit);
 
     private static bool EsViolacionDeUnico(DbUpdateException ex) =>
         ex.InnerException?.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) == true;

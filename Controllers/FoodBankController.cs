@@ -15,9 +15,7 @@ namespace PROYECTO_FINAL.Controllers;
 /// formulario que se queda en la misma pantalla tras guardar.
 /// </summary>
 [Authorize(Roles = "Donante,Operador,Coordinador,Administrador")]
-public class FoodBankController(
-    RescautaApiClient api,
-    RutaDonacionService rutas) : Controller
+public class FoodBankController(RescautaApiClient api) : Controller
 {
     /// <param name="registrado">
     /// Codigo de seguimiento que viaja desde el POST tras un registro exitoso (PRG). Se
@@ -120,37 +118,6 @@ public class FoodBankController(
         return RedirectToAction(
             nameof(Index),
             new { registrado = donacion.Valor!.CodigoSeguimiento });
-    }
-
-    /// <summary>
-    /// Calcula la ruta desde el punto de recogida hasta el comedor destino. La llama por
-    /// AJAX el mapa despues de registrar la donacion, nunca el POST: si OSRM esta caido,
-    /// el registro ya se guardo y la pantalla solo muestra que la ruta no esta disponible.
-    /// </summary>
-    [HttpGet]
-    public async Task<IActionResult> Ruta(string codigo, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(codigo))
-        {
-            return Json(new RutaDonacionRespuesta
-            {
-                Motivo = "sin_codigo",
-                Mensaje = "No se indico el codigo de la donacion."
-            });
-        }
-
-        var donacion = await api.ObtenerDonacionPorCodigoAsync(codigo.Trim(), cancellationToken);
-
-        if (!donacion.Exito || donacion.Valor is null)
-        {
-            return Json(new RutaDonacionRespuesta
-            {
-                Motivo = donacion.Codigo ?? "api_no_disponible",
-                Mensaje = donacion.Mensaje ?? "No se pudo leer la donacion."
-            });
-        }
-
-        return Json(await rutas.CalcularAsync(donacion.Valor, cancellationToken));
     }
 
     /// <summary>

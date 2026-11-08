@@ -236,11 +236,11 @@ public sealed class RescautaApiClient(
             cancellationToken);
     }
 
-    public async Task<Result<DonacionRegistrada>> ObtenerDonacionPorCodigoAsync(
+    public async Task<Result<SeguimientoDonacionPublico>> ObtenerSeguimientoDonacionAsync(
         string codigo,
         CancellationToken cancellationToken = default)
     {
-        return await GetAsync<DonacionRegistrada>(
+        return await GetAsync<SeguimientoDonacionPublico>(
             $"/api/v1/donaciones/seguimiento/{Uri.EscapeDataString(codigo)}",
             cancellationToken);
     }

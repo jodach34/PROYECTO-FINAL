@@ -34,10 +34,9 @@ public interface IDonacionService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Busca una donacion por su codigo de seguimiento. Es la lectura publica del modulo:
-    /// el donante conoce su codigo, no un id interno.
+    /// Busca una donacion por codigo y devuelve solo la proyeccion publica de seguimiento.
     /// </summary>
-    Task<Result<DonacionResultDto>> ObtenerPorCodigoAsync(
+    Task<Result<SeguimientoDonacionPublicoDto>> ObtenerPorCodigoAsync(
         string codigo,
         CancellationToken cancellationToken = default);
 

@@ -173,7 +173,7 @@ public sealed record SeguimientoViewModel
 {
     public string Codigo { get; init; } = string.Empty;
 
-    public DonacionRegistrada? Donacion { get; init; }
+    public SeguimientoDonacionPublico? Donacion { get; init; }
 
     public string? Error { get; init; }
 

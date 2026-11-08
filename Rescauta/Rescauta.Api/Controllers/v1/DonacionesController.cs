@@ -68,13 +68,13 @@ public sealed class DonacionesController(IDonacionService donacionService) : Api
 
     /// <summary>
     /// Busca una donacion por su codigo publico de seguimiento. Es la lectura que usa el
-    /// donante desde la pagina de Seguimiento; no expone la lista completa.
+    /// donante desde la pagina de Seguimiento. Devuelve una proyeccion publica minima.
     /// </summary>
     [HttpGet("seguimiento/{codigo}")]
     [AllowAnonymous]
-    [ProducesResponseType<DonacionResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<SeguimientoDonacionPublicoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<DonacionResultDto>> ObtenerPorCodigo(
+    public async Task<ActionResult<SeguimientoDonacionPublicoDto>> ObtenerPorCodigo(
         string codigo,
         CancellationToken cancellationToken)
     {

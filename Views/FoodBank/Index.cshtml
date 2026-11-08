@@ -37,12 +37,6 @@
         </span>
     </div>
 
-    <div class="mb-4">
-        @await Html.PartialAsync("_MapaRutaDonacion", new RutaDonacionMapaViewModel
-        {
-            Endpoint = Url.Action("Ruta", "FoodBank", new { codigo = Model.Exito }) ?? string.Empty
-        })
-    </div>
 }
 
 @if (Model.Error is not null)

@@ -120,6 +120,18 @@ public sealed record DonacionResultDto
     public decimal StockResultante { get; init; }
 }
 
+/// <summary>Informacion minima para consultar publicamente el estado de una donacion.</summary>
+public sealed record SeguimientoDonacionPublicoDto
+{
+    public string CodigoSeguimiento { get; init; } = string.Empty;
+    public string InsumoNombre { get; init; } = string.Empty;
+    public string ComedorNombre { get; init; } = string.Empty;
+    public int Cantidad { get; init; }
+    public string UnidadMedida { get; init; } = string.Empty;
+    public string Estado { get; init; } = string.Empty;
+    public DateTimeOffset FechaDonacion { get; init; }
+}
+
 /// <summary>Un cambio de estado auditado de una donacion.</summary>
 public sealed record DonacionHistorialDto
 {

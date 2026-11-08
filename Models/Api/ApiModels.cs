@@ -153,6 +153,18 @@ public sealed class DonacionRegistrada
     public decimal StockResultante { get; set; }
 }
 
+/// <summary>Respuesta reducida de la consulta publica de seguimiento.</summary>
+public sealed class SeguimientoDonacionPublico
+{
+    public string CodigoSeguimiento { get; set; } = string.Empty;
+    public string InsumoNombre { get; set; } = string.Empty;
+    public string ComedorNombre { get; set; } = string.Empty;
+    public int Cantidad { get; set; }
+    public string UnidadMedida { get; set; } = string.Empty;
+    public string Estado { get; set; } = string.Empty;
+    public DateTimeOffset FechaDonacion { get; set; }
+}
+
 public sealed class DonacionHistorialApi
 {
     public string EstadoAnterior { get; set; } = string.Empty;
