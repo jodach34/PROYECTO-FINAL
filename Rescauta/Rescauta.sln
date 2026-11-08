@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rescauta.Infrastructure", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rescauta.Api", "Rescauta.Api\Rescauta.Api.csproj", "{FF955F51-395E-4202-95B7-69BA7DBF0130}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rescauta.Tests", "Rescauta.Tests\Rescauta.Tests.csproj", "{C3597ED1-C933-471E-84F3-1045F0BBACC3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +71,18 @@ Global
 		{FF955F51-395E-4202-95B7-69BA7DBF0130}.Release|x64.Build.0 = Release|Any CPU
 		{FF955F51-395E-4202-95B7-69BA7DBF0130}.Release|x86.ActiveCfg = Release|Any CPU
 		{FF955F51-395E-4202-95B7-69BA7DBF0130}.Release|x86.Build.0 = Release|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Debug|x64.Build.0 = Debug|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Debug|x86.Build.0 = Debug|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Release|x64.ActiveCfg = Release|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Release|x64.Build.0 = Release|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Release|x86.ActiveCfg = Release|Any CPU
+		{C3597ED1-C933-471E-84F3-1045F0BBACC3}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

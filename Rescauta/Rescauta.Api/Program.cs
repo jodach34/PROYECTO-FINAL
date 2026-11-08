@@ -202,6 +202,35 @@ builder.Services.AddRateLimiter(options =>
         limiter.QueueLimit = 0;
         limiter.AutoReplenishment = true;
     });
+
+    // Chatbot documental público: 10 solicitudes por minuto y por IP.
+    //
+    // El limitador se particiona con la IP remota: una IP no puede consumir el cupo
+    // de las demás. Las solicitudes que exceden el cupo se rechazan con 429.
+    //
+    // LIMITACIÓN CONOCIDA: este limitador vive en memoria del proceso. Con varias
+    // instancias de la API, cada instancia aplica su propio cupo y el límite global
+    // es N x 10/min por IP. Para un límite realmente global se necesita Redis o el
+    // proxy. Además, detrás de un proxy hay que configurar ForwardedHeaders para que
+    // la partición use la IP real del cliente y no la del proxy.
+    options.AddPolicy("chatbot", httpContext =>
+    {
+        var remoteIp = httpContext.Connection.RemoteIpAddress;
+
+        var partitionKey = remoteIp is null
+            ? "desconocida"
+            : remoteIp.ToString();
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
 });
 
 // -----------------------------------------------------------------------------
@@ -284,6 +313,11 @@ if (app.Environment.IsDevelopment())
 app.UseCors(CorsPolicyName);
 
 app.UseResponseCompression();
+
+// El límite de cuerpo se aplica antes del model binding y del rate limiter:
+// una solicitud sobredimensionada se rechaza con 413 aunque el host no exponga
+// IHttpMaxRequestBodySizeFeature.
+app.UseMiddleware<ChatbotRequestBodyLimitMiddleware>();
 
 app.UseRateLimiter();
 

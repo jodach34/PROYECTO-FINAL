@@ -142,6 +142,24 @@ builder.Services.AddHttpClient<RescautaApiClient>((servicios, cliente) =>
     cliente.Timeout = TimeSpan.FromSeconds(10);
 });
 
+// Cliente independiente para el chatbot RAG. Su timeout no altera el cliente general
+// de Rescauta, cuyos endpoints conservan el límite de 10 segundos.
+builder.Services.AddHttpClient<ChatbotApiClient>((servicios, cliente) =>
+{
+    var configuracion = servicios.GetRequiredService<IConfiguration>();
+    var urlBase = configuracion["Api:BaseUrl"];
+
+    if (string.IsNullOrWhiteSpace(urlBase))
+    {
+        throw new InvalidOperationException(
+            "Falta Api:BaseUrl en appsettings.json. Sin ella el MVC no sabe donde esta la API.");
+    }
+
+    cliente.BaseAddress = new Uri(urlBase);
+    cliente.Timeout = TimeSpan.FromSeconds(60);
+});
+
+
 var app = builder.Build();
 
 // En local el comando es uno solo, "dotnet run", pero el proyecto son dos procesos: el MVC
