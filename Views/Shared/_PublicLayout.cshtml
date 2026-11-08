@@ -11,6 +11,7 @@
         @RenderBody()
     </main>
     @await Html.PartialAsync("_RescautaFooter")
+    @await Html.PartialAsync("_Chatbot")
     <script src="~/js/rescauta.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", false)
 </body>

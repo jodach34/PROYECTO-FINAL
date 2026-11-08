@@ -194,6 +194,273 @@
     });
   }
 
+  function initChatbot() {
+    const root = select("[data-chatbot]");
+
+    if (!root) return;
+
+    const panel = select("[data-chatbot-panel]", root);
+    const toggle = select("[data-chatbot-toggle]", root);
+    const close = select("[data-chatbot-close]", root);
+    const messages = select("[data-chatbot-messages]", root);
+    const form = select("[data-chatbot-form]", root);
+    const input = select("[data-chatbot-input]", root);
+
+    if (!panel || !toggle || !messages || !form || !input) return;
+
+    const scrollToEnd = function () {
+      messages.scrollTop = messages.scrollHeight;
+    };
+
+    const endpoint = root.getAttribute("data-chatbot-endpoint");
+    const status = select("[data-chatbot-status]", root);
+    const retry = select("[data-chatbot-retry]", root);
+    const cancel = select("[data-chatbot-cancel]", root);
+    const send = select("[type='submit']", form);
+    const antiforgery = select("input[name='__RequestVerificationToken']", root);
+    let activeRequest = null;
+    let lastFailedQuestion = null;
+    let requestSequence = 0;
+
+    const setStatus = function (texto, visible) {
+      if (!status) return;
+
+      status.textContent = texto || "";
+      status.hidden = !visible;
+    };
+
+    const appendMessage = function (texto, autor) {
+      const wrapper = document.createElement("div");
+      const bubble = document.createElement("span");
+
+      wrapper.className = "rs-chatbot__message rs-chatbot__message--" + autor;
+      bubble.className = "rs-chatbot__bubble";
+      bubble.textContent = texto;
+      wrapper.appendChild(bubble);
+      messages.appendChild(wrapper);
+      scrollToEnd();
+      return wrapper;
+    };
+
+    const renderSources = function (wrapper, fuentes) {
+      if (!Array.isArray(fuentes) || fuentes.length === 0) return;
+
+      const heading = document.createElement("strong");
+      heading.textContent = "Fuentes";
+
+      const list = document.createElement("ul");
+      list.className = "rs-chatbot__sources";
+
+      fuentes.forEach(function (fuente) {
+        const item = document.createElement("li");
+        const title = fuente.titulo || fuente.fuente || "Fuente documental";
+        item.textContent = fuente.id ? fuente.id + ": " + title : title;
+        list.appendChild(item);
+      });
+
+      wrapper.appendChild(heading);
+      wrapper.appendChild(list);
+    };
+
+    const renderResponse = function (wrapper, data) {
+      const bubble = select(".rs-chatbot__bubble", wrapper);
+      if (!bubble) return;
+
+      bubble.textContent = data && data.respuesta
+        ? data.respuesta
+        : "No se encontró información suficiente para responder.";
+
+      const oldSources = select(".rs-chatbot__sources", wrapper);
+      if (oldSources) oldSources.remove();
+
+      const oldHeading = select("strong", wrapper);
+      if (oldHeading) oldHeading.remove();
+
+      renderSources(wrapper, data ? data.fuentes : []);
+    };
+
+    const setBusy = function (busy) {
+      input.disabled = busy;
+      if (send) send.disabled = busy;
+      if (cancel) cancel.hidden = !busy;
+      if (retry && busy) retry.hidden = true;
+    };
+
+    const errorMessage = function (response, payload) {
+      if (payload && payload.mensaje) return payload.mensaje;
+
+      if (response.status === 429) {
+        return "El asistente está recibiendo muchas solicitudes. Intenta nuevamente en unos segundos.";
+      }
+
+      if (response.status === 504) {
+        return "El asistente tardó demasiado en responder. Intenta nuevamente.";
+      }
+
+      return "El asistente no está disponible en este momento. Intenta nuevamente.";
+    };
+
+    const executeQuestion = async function (question, userMessage, botMessage) {
+      if (!endpoint || activeRequest) return;
+
+      const controller = new AbortController();
+      const requestId = ++requestSequence;
+      activeRequest = { controller: controller, requestId: requestId };
+      lastFailedQuestion = null;
+      setBusy(true);
+      setStatus("Consultando al asistente...", true);
+
+      const botBubble = select(".rs-chatbot__bubble", botMessage);
+      if (botBubble) botBubble.textContent = "Consultando...";
+
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "RequestVerificationToken": antiforgery ? antiforgery.value : ""
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({ pregunta: question }),
+          signal: controller.signal
+        });
+
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch (parseError) {
+          payload = null;
+        }
+
+        if (!response.ok) {
+          const failure = new Error(errorMessage(response, payload));
+          failure.status = response.status;
+          throw failure;
+        }
+
+        renderResponse(botMessage, payload);
+        setStatus(payload && payload.suficienteInformacion === false
+          ? "La respuesta no contiene información suficiente."
+          : "", Boolean(payload && payload.suficienteInformacion === false));
+        if (retry) retry.hidden = true;
+      } catch (error) {
+        if (controller.signal.aborted) {
+          if (botBubble) botBubble.textContent = "Consulta cancelada.";
+          setStatus("Consulta cancelada.", true);
+          return;
+        }
+
+        if (requestId !== requestSequence) return;
+
+        if (botBubble) botBubble.textContent = error.message || "No se pudo completar la consulta.";
+        lastFailedQuestion = {
+          question: question,
+          userMessage: userMessage,
+          botMessage: botMessage
+        };
+        setStatus("No se pudo completar la consulta.", true);
+        if (retry) retry.hidden = false;
+      } finally {
+        if (activeRequest && activeRequest.requestId === requestId) {
+          activeRequest = null;
+          setBusy(false);
+        }
+      }
+    };
+
+    const preguntar = function (texto, opciones) {
+      const limpio = (texto || "").trim();
+
+      if (!limpio || activeRequest) return;
+
+      const userMessage = appendMessage(limpio, "user");
+      const botMessage = appendMessage("Consultando...", "bot");
+      input.value = "";
+      executeQuestion(limpio, userMessage, botMessage);
+
+      if (!opciones || opciones.focusInput !== false) input.focus();
+    };
+
+    const abrir = function () {
+      panel.hidden = false;
+      toggle.setAttribute("aria-expanded", "true");
+      scrollToEnd();
+
+      window.setTimeout(function () {
+        input.focus();
+      }, 60);
+    };
+
+    const cerrar = function (opciones) {
+      if (panel.hidden) return;
+
+      panel.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+
+      if (opciones && opciones.focusToggle) {
+        toggle.focus();
+      }
+    };
+
+    toggle.addEventListener("click", function () {
+      if (panel.hidden) {
+        abrir();
+      } else {
+        cerrar();
+      }
+    });
+
+    if (close) {
+      close.addEventListener("click", function () {
+        cerrar({ focusToggle: true });
+      });
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+
+      const texto = input.value.trim();
+
+      if (!texto) {
+        input.focus();
+        return;
+      }
+
+      preguntar(texto);
+    });
+
+    if (cancel) {
+      cancel.addEventListener("click", function () {
+        if (activeRequest) activeRequest.controller.abort();
+      });
+    }
+
+    if (retry) {
+      retry.addEventListener("click", function () {
+        if (!lastFailedQuestion || activeRequest) return;
+
+        executeQuestion(
+          lastFailedQuestion.question,
+          lastFailedQuestion.userMessage,
+          lastFailedQuestion.botMessage);
+      });
+    }
+
+    selectAll("[data-chatbot-question]", root).forEach(function (button) {
+      button.addEventListener("click", function () {
+        preguntar(button.getAttribute("data-chatbot-question"), { focusInput: false });
+      });
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        cerrar({ focusToggle: true });
+      }
+    });
+  }
+
+
   function initReveal() {
     if (!("IntersectionObserver" in window)) {
       selectAll("[data-reveal]").forEach(function (item) {
@@ -259,6 +526,7 @@
     initNavigation();
     initMaps();
     initDirectory();
+    initChatbot();
     initReveal();
     initPendingActions();
   });

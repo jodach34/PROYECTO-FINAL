@@ -41,4 +41,14 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Documentación institucional curada para el RAG. Se embebe en el ensamblado para
+      que la imagen Docker de la API no dependa de rutas del sistema ni del proyecto MVC.
+      El manifiesto index.json define qué documentos se indexan y con qué metadatos.
+    -->
+    <EmbeddedResource Include="Ai\Documents\index.json" />
+    <EmbeddedResource Include="Ai\Documents\**\*.md" />
+  </ItemGroup>
+
 </Project>
