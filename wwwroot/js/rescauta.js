@@ -199,6 +199,9 @@
 
     if (!root) return;
 
+    if (root.dataset.chatbotInitialized === "true") return;
+    root.dataset.chatbotInitialized = "true";
+
     const panel = select("[data-chatbot-panel]", root);
     const toggle = select("[data-chatbot-toggle]", root);
     const close = select("[data-chatbot-close]", root);
@@ -218,6 +221,7 @@
     const cancel = select("[data-chatbot-cancel]", root);
     const send = select("[type='submit']", form);
     const antiforgery = select("input[name='__RequestVerificationToken']", root);
+    const suggestions = selectAll("[data-chatbot-question]", root);
     let activeRequest = null;
     let lastFailedQuestion = null;
     let requestSequence = 0;
@@ -229,14 +233,107 @@
       status.hidden = !visible;
     };
 
+    const appendInlineMarkdown = function (parent, text) {
+      const pattern = /(\*\*[^*]+\*\*|__[^_]+__)/g;
+      let cursor = 0;
+      let match;
+
+      while ((match = pattern.exec(text)) !== null) {
+        if (match.index > cursor) {
+          parent.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+        }
+
+        const strong = document.createElement("strong");
+        strong.textContent = match[0].slice(2, -2);
+        parent.appendChild(strong);
+        cursor = pattern.lastIndex;
+      }
+
+      if (cursor < text.length) {
+        parent.appendChild(document.createTextNode(text.slice(cursor)));
+      }
+    };
+
+    const renderMarkdown = function (container, markdown) {
+      container.replaceChildren();
+
+      const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
+      let index = 0;
+
+      while (index < lines.length) {
+        if (!lines[index].trim()) {
+          index += 1;
+          continue;
+        }
+
+        const headingMatch = lines[index].match(/^(#{1,3})\s+(.+?)\s*#*$/);
+        if (headingMatch) {
+          const heading = document.createElement("h" + (headingMatch[1].length + 1));
+          heading.className = "rs-chatbot__markdown-heading";
+          appendInlineMarkdown(heading, headingMatch[2]);
+          container.appendChild(heading);
+          index += 1;
+          continue;
+        }
+
+        const orderedMatch = lines[index].match(/^\s*\d+[.)]\s+(.+)$/);
+        const unorderedMatch = lines[index].match(/^\s*[-*•]\s+(.+)$/);
+        if (orderedMatch || unorderedMatch) {
+          const ordered = Boolean(orderedMatch);
+          const list = document.createElement(ordered ? "ol" : "ul");
+          list.className = "rs-chatbot__markdown-list";
+
+          while (index < lines.length) {
+            const itemMatch = ordered
+              ? lines[index].match(/^\s*\d+[.)]\s+(.+)$/)
+              : lines[index].match(/^\s*[-*•]\s+(.+)$/);
+            if (!itemMatch) break;
+
+            const item = document.createElement("li");
+            appendInlineMarkdown(item, itemMatch[1]);
+            list.appendChild(item);
+            index += 1;
+          }
+
+          container.appendChild(list);
+          continue;
+        }
+
+        const paragraph = document.createElement("p");
+        paragraph.className = "rs-chatbot__markdown-paragraph";
+
+        while (index < lines.length && lines[index].trim()) {
+          if (paragraph.childNodes.length > 0) {
+            paragraph.appendChild(document.createElement("br"));
+          }
+          appendInlineMarkdown(paragraph, lines[index]);
+          index += 1;
+        }
+
+        container.appendChild(paragraph);
+      }
+    };
+
     const appendMessage = function (texto, autor) {
       const wrapper = document.createElement("div");
-      const bubble = document.createElement("span");
+      const bubble = document.createElement("div");
 
       wrapper.className = "rs-chatbot__message rs-chatbot__message--" + autor;
       bubble.className = "rs-chatbot__bubble";
-      bubble.textContent = texto;
-      wrapper.appendChild(bubble);
+      if (autor === "bot") {
+        const content = document.createElement("div");
+        const name = document.createElement("span");
+        content.className = "rs-chatbot__message-content";
+        name.className = "rs-chatbot__message-name";
+        name.textContent = "RESCAUTA IA";
+        content.appendChild(name);
+        content.appendChild(bubble);
+        wrapper.appendChild(content);
+        renderMarkdown(bubble, texto);
+      } else {
+        bubble.textContent = texto;
+        wrapper.appendChild(bubble);
+      }
       messages.appendChild(wrapper);
       scrollToEnd();
       return wrapper;
@@ -245,8 +342,16 @@
     const renderSources = function (wrapper, fuentes) {
       if (!Array.isArray(fuentes) || fuentes.length === 0) return;
 
-      const heading = document.createElement("strong");
-      heading.textContent = "Fuentes";
+      const content = select(".rs-chatbot__message-content", wrapper);
+      if (!content) return;
+
+      const section = document.createElement("section");
+      section.className = "rs-chatbot__sources-block";
+      section.setAttribute("aria-label", "Fuentes de la respuesta");
+
+      const heading = document.createElement("h3");
+      heading.className = "rs-chatbot__sources-heading";
+      heading.textContent = "Fuentes consultadas";
 
       const list = document.createElement("ul");
       list.className = "rs-chatbot__sources";
@@ -258,46 +363,68 @@
         list.appendChild(item);
       });
 
-      wrapper.appendChild(heading);
-      wrapper.appendChild(list);
+      section.appendChild(heading);
+      section.appendChild(list);
+      content.appendChild(section);
     };
 
     const renderResponse = function (wrapper, data) {
       const bubble = select(".rs-chatbot__bubble", wrapper);
       if (!bubble) return;
 
-      bubble.textContent = data && data.respuesta
+      const answer = data && data.respuesta
         ? data.respuesta
         : "No se encontró información suficiente para responder.";
+      renderMarkdown(bubble, answer);
 
-      const oldSources = select(".rs-chatbot__sources", wrapper);
+      const oldSources = select(".rs-chatbot__sources-block", wrapper);
       if (oldSources) oldSources.remove();
-
-      const oldHeading = select("strong", wrapper);
-      if (oldHeading) oldHeading.remove();
 
       renderSources(wrapper, data ? data.fuentes : []);
     };
 
+    const setThinking = function (bubble) {
+      if (!bubble) return;
+
+      bubble.replaceChildren();
+      const label = document.createElement("span");
+      label.className = "rs-chatbot__sr-only";
+      label.textContent = "RESCAUTA IA está preparando una respuesta";
+
+      const dots = document.createElement("span");
+      dots.className = "rs-chatbot__typing";
+      dots.setAttribute("aria-hidden", "true");
+      for (let index = 0; index < 3; index += 1) {
+        dots.appendChild(document.createElement("i"));
+      }
+
+      bubble.appendChild(label);
+      bubble.appendChild(dots);
+    };
+
     const setBusy = function (busy) {
       input.disabled = busy;
+      messages.setAttribute("aria-busy", String(busy));
       if (send) send.disabled = busy;
       if (cancel) cancel.hidden = !busy;
       if (retry && busy) retry.hidden = true;
+      suggestions.forEach(function (button) {
+        button.disabled = busy;
+      });
     };
 
     const errorMessage = function (response, payload) {
       if (payload && payload.mensaje) return payload.mensaje;
 
       if (response.status === 429) {
-        return "El asistente está recibiendo muchas solicitudes. Intenta nuevamente en unos segundos.";
+        return "RESCAUTA IA está recibiendo muchas consultas. Intenta nuevamente en unos segundos.";
       }
 
       if (response.status === 504) {
-        return "El asistente tardó demasiado en responder. Intenta nuevamente.";
+        return "RESCAUTA IA tardó demasiado en responder. Intenta nuevamente.";
       }
 
-      return "El asistente no está disponible en este momento. Intenta nuevamente.";
+      return "RESCAUTA IA no está disponible en este momento. Intenta nuevamente.";
     };
 
     const executeQuestion = async function (question, userMessage, botMessage) {
@@ -308,10 +435,10 @@
       activeRequest = { controller: controller, requestId: requestId };
       lastFailedQuestion = null;
       setBusy(true);
-      setStatus("Consultando al asistente...", true);
+      setStatus("RESCAUTA IA está preparando una respuesta...", true);
 
       const botBubble = select(".rs-chatbot__bubble", botMessage);
-      if (botBubble) botBubble.textContent = "Consultando...";
+      setThinking(botBubble);
 
       try {
         const response = await fetch(endpoint, {
@@ -447,7 +574,7 @@
       });
     }
 
-    selectAll("[data-chatbot-question]", root).forEach(function (button) {
+    suggestions.forEach(function (button) {
       button.addEventListener("click", function () {
         preguntar(button.getAttribute("data-chatbot-question"), { focusInput: false });
       });

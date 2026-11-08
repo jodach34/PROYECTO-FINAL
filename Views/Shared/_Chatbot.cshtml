@@ -1,10 +1,9 @@
 @{
     var preguntas = new[]
     {
-        "¿Cómo registro una donación?",
-        "¿Cómo confirmo la recepción de alimentos?",
-        "¿Cómo registro alimentos en el inventario?",
-        "¿Cómo consulto el Kardex?",
+        "¿Cómo funciona Rescauta?",
+        "¿Qué comedores están registrados?",
+        "¿Cómo puedo donar alimentos?",
         "¿Cómo hago seguimiento a una donación?"
     };
 }
@@ -19,37 +18,41 @@
         <header class="rs-chatbot__header">
             <div class="rs-chatbot__identity">
                 <span class="rs-chatbot__avatar" aria-hidden="true">
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 3 13.4 7.6 18 9l-4.6 1.4L12 15l-1.4-4.6L6 9l4.6-1.4L12 3Z" />
                         <path d="M5 15.5 5.8 18l2.5.8-2.5.8L5 22l-.8-2.4-2.5-.8 2.5-.8L5 15.5Z" />
                     </svg>
                 </span>
-                <div>
-                    <p class="rs-chatbot__title" id="chatbot-rescauta-title">Asistente de Rescauta</p>
-                    <p class="rs-chatbot__subtitle">Ayuda rápida · respuestas guiadas</p>
+                <div class="rs-chatbot__brand">
+                    <p class="rs-chatbot__title" id="chatbot-rescauta-title">RESCAUTA IA</p>
+                    <p class="rs-chatbot__subtitle">Asistente inteligente de Rescauta</p>
                 </div>
             </div>
 
-            <button class="rs-chatbot__close" type="button" data-chatbot-close aria-label="Cerrar asistente">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+            <button class="rs-chatbot__close" type="button" data-chatbot-close aria-label="Cerrar RESCAUTA IA" title="Cerrar chat">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
                     <path d="m6 6 12 12M18 6 6 18" />
                 </svg>
             </button>
         </header>
 
-        <div class="rs-chatbot__messages" data-chatbot-messages role="log" aria-live="polite" aria-relevant="additions">
-            <div class="rs-chatbot__message rs-chatbot__message--bot">
-                <span class="rs-chatbot__bubble">¡Hola! Soy el asistente de Rescauta. ¿En qué puedo ayudarte?</span>
+        <div class="rs-chatbot__messages" data-chatbot-messages role="log" aria-live="polite" aria-relevant="additions text">
+            <div class="rs-chatbot__welcome">
+                <span class="rs-chatbot__welcome-kicker">Tu asistente de Rescauta</span>
+                <p>¡Hola! Soy <strong>RESCAUTA IA</strong>. Puedo orientarte sobre la red, los comedores y las donaciones.</p>
+                <span class="rs-chatbot__welcome-hint">Elige una pregunta o escribe la tuya.</span>
             </div>
         </div>
 
         @Html.AntiForgeryToken()
         <p class="rs-chatbot__status" data-chatbot-status role="status" aria-live="polite" hidden></p>
-        <button class="rs-chatbot__retry" type="button" data-chatbot-retry hidden>Reintentar</button>
-        <button class="rs-chatbot__cancel" type="button" data-chatbot-cancel hidden>Cancelar</button>
+        <div class="rs-chatbot__actions">
+            <button class="rs-chatbot__retry" type="button" data-chatbot-retry hidden>Reintentar</button>
+            <button class="rs-chatbot__cancel" type="button" data-chatbot-cancel hidden>Cancelar consulta</button>
+        </div>
 
-        <div class="rs-chatbot__suggestions" aria-label="Preguntas frecuentes">
-            <p class="rs-chatbot__suggestions-label">Preguntas frecuentes</p>
+        <div class="rs-chatbot__suggestions" aria-label="Preguntas sugeridas">
+            <p class="rs-chatbot__suggestions-label">Preguntas para empezar</p>
             <div class="rs-chatbot__suggestions-list">
                 @foreach (var pregunta in preguntas)
                 {
@@ -59,20 +62,24 @@
         </div>
 
         <form class="rs-chatbot__form" data-chatbot-form>
-            <input class="rs-chatbot__input"
-                   type="text"
-                   maxlength="240"
-                   autocomplete="off"
-                   placeholder="Escribe tu pregunta..."
-                   aria-label="Escribe tu pregunta"
-                   data-chatbot-input />
-            <button class="rs-chatbot__send" type="submit" aria-label="Enviar pregunta">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <label class="rs-chatbot__input-wrap">
+                <span class="rs-chatbot__sr-only">Escribe tu pregunta</span>
+                <input class="rs-chatbot__input"
+                       type="text"
+                       maxlength="240"
+                       autocomplete="off"
+                       placeholder="Escribe tu pregunta..."
+                       aria-label="Escribe tu pregunta a RESCAUTA IA"
+                       data-chatbot-input />
+            </label>
+            <button class="rs-chatbot__send" type="submit" aria-label="Enviar pregunta" title="Enviar pregunta">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="m4 4 17 8-17 8 3-8-3-8Z" />
                     <path d="M7 12h14" />
                 </svg>
             </button>
         </form>
+        <p class="rs-chatbot__privacy-note">Las respuestas pueden contener errores. Verifica la información importante.</p>
     </section>
 
     <button class="rs-chatbot__trigger"
@@ -80,13 +87,14 @@
             data-chatbot-toggle
             aria-controls="chatbot-rescauta"
             aria-expanded="false"
-            aria-label="Abrir asistente de Rescauta">
+            aria-label="Abrir RESCAUTA IA">
         <span class="rs-chatbot__trigger-icon" aria-hidden="true">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-5.5A8 8 0 0 1 11 4h2a8 8 0 0 1 8 8Z" />
                 <path d="M8.5 11h.01M12 11h.01M15.5 11h.01" />
             </svg>
         </span>
-        <span class="rs-chatbot__trigger-label">Ayuda</span>
+        <span class="rs-chatbot__trigger-label">RESCAUTA IA</span>
+        <span class="rs-chatbot__trigger-spark" aria-hidden="true">IA</span>
     </button>
 </div>
