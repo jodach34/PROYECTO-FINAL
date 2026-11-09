@@ -1,10 +1,10 @@
 @{
-    var preguntas = new[]
+    var temas = new[]
     {
-        "¿Cómo funciona Rescauta?",
-        "¿Qué comedores están registrados?",
-        "¿Cómo puedo donar alimentos?",
-        "¿Cómo hago seguimiento a una donación?"
+        new { Etiqueta = "Comedores", Pregunta = "¿Qué comedores están registrados en Rescauta?" },
+        new { Etiqueta = "Donaciones", Pregunta = "¿Cómo puedo donar alimentos en Rescauta?" },
+        new { Etiqueta = "Seguimiento", Pregunta = "¿Cómo puedo consultar el estado de mi donación?" },
+        new { Etiqueta = "Cómo funciona Rescauta", Pregunta = "¿Cómo funciona Rescauta?" }
     };
 }
 
@@ -18,10 +18,7 @@
         <header class="rs-chatbot__header">
             <div class="rs-chatbot__identity">
                 <span class="rs-chatbot__avatar" aria-hidden="true">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 3 13.4 7.6 18 9l-4.6 1.4L12 15l-1.4-4.6L6 9l4.6-1.4L12 3Z" />
-                        <path d="M5 15.5 5.8 18l2.5.8-2.5.8L5 22l-.8-2.4-2.5-.8 2.5-.8L5 15.5Z" />
-                    </svg>
+                    <span class="rs-chatbot__orb"></span>
                 </span>
                 <div class="rs-chatbot__brand">
                     <p class="rs-chatbot__title" id="chatbot-rescauta-title">RESCAUTA IA</p>
@@ -39,8 +36,20 @@
         <div class="rs-chatbot__messages" data-chatbot-messages role="log" aria-live="polite" aria-relevant="additions text">
             <div class="rs-chatbot__welcome">
                 <span class="rs-chatbot__welcome-kicker">Tu asistente de Rescauta</span>
-                <p>¡Hola! Soy <strong>RESCAUTA IA</strong>. Puedo orientarte sobre la red, los comedores y las donaciones.</p>
-                <span class="rs-chatbot__welcome-hint">Elige una pregunta o escribe la tuya.</span>
+                <p>¡Hola! Soy <strong>RESCAUTA IA</strong>. <span aria-hidden="true">✨</span></p>
+                <p>Puedo orientarte sobre los comedores, las donaciones y el funcionamiento de Rescauta. También puedes escribirme tu propia pregunta.</p>
+                <div class="rs-chatbot__suggestions" aria-label="Temas sobre los que RESCAUTA IA puede orientar">
+                    <p class="rs-chatbot__suggestions-label">Puedo ayudarte con:</p>
+                    <div class="rs-chatbot__suggestions-list">
+                        @foreach (var tema in temas)
+                        {
+                            <button class="rs-chatbot__suggestion"
+                                    type="button"
+                                    data-chatbot-question="@tema.Pregunta"
+                                    aria-label="Consultar sobre @tema.Etiqueta">@tema.Etiqueta</button>
+                        }
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -49,16 +58,6 @@
         <div class="rs-chatbot__actions">
             <button class="rs-chatbot__retry" type="button" data-chatbot-retry hidden>Reintentar</button>
             <button class="rs-chatbot__cancel" type="button" data-chatbot-cancel hidden>Cancelar consulta</button>
-        </div>
-
-        <div class="rs-chatbot__suggestions" aria-label="Preguntas sugeridas">
-            <p class="rs-chatbot__suggestions-label">Preguntas para empezar</p>
-            <div class="rs-chatbot__suggestions-list">
-                @foreach (var pregunta in preguntas)
-                {
-                    <button class="rs-chatbot__suggestion" type="button" data-chatbot-question="@pregunta">@pregunta</button>
-                }
-            </div>
         </div>
 
         <form class="rs-chatbot__form" data-chatbot-form>
@@ -89,10 +88,7 @@
             aria-expanded="false"
             aria-label="Abrir RESCAUTA IA">
         <span class="rs-chatbot__trigger-icon" aria-hidden="true">
-            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-5.5A8 8 0 0 1 11 4h2a8 8 0 0 1 8 8Z" />
-                <path d="M8.5 11h.01M12 11h.01M15.5 11h.01" />
-            </svg>
+            <span class="rs-chatbot__orb"></span>
         </span>
         <span class="rs-chatbot__trigger-label">RESCAUTA IA</span>
         <span class="rs-chatbot__trigger-spark" aria-hidden="true">IA</span>
