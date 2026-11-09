@@ -1,10 +1,10 @@
 @{
-    var preguntas = new[]
+    var temas = new[]
     {
-        "¿Cómo funciona Rescauta?",
-        "¿Qué comedores están registrados?",
-        "¿Cómo puedo donar alimentos?",
-        "¿Cómo hago seguimiento a una donación?"
+        new { Etiqueta = "Comedores", Pregunta = "¿Qué comedores están registrados en Rescauta?" },
+        new { Etiqueta = "Donaciones", Pregunta = "¿Cómo puedo donar alimentos en Rescauta?" },
+        new { Etiqueta = "Seguimiento", Pregunta = "¿Cómo puedo consultar el estado de mi donación?" },
+        new { Etiqueta = "Cómo funciona Rescauta", Pregunta = "¿Cómo funciona Rescauta?" }
     };
 }
 
@@ -36,8 +36,20 @@
         <div class="rs-chatbot__messages" data-chatbot-messages role="log" aria-live="polite" aria-relevant="additions text">
             <div class="rs-chatbot__welcome">
                 <span class="rs-chatbot__welcome-kicker">Tu asistente de Rescauta</span>
-                <p>¡Hola! Soy <strong>RESCAUTA IA</strong>. Puedo orientarte sobre la red, los comedores y las donaciones.</p>
-                <span class="rs-chatbot__welcome-hint">Elige una pregunta o escribe la tuya.</span>
+                <p>¡Hola! Soy <strong>RESCAUTA IA</strong>. <span aria-hidden="true">✨</span></p>
+                <p>Puedo orientarte sobre los comedores, las donaciones y el funcionamiento de Rescauta. También puedes escribirme tu propia pregunta.</p>
+                <div class="rs-chatbot__suggestions" aria-label="Temas sobre los que RESCAUTA IA puede orientar">
+                    <p class="rs-chatbot__suggestions-label">Puedo ayudarte con:</p>
+                    <div class="rs-chatbot__suggestions-list">
+                        @foreach (var tema in temas)
+                        {
+                            <button class="rs-chatbot__suggestion"
+                                    type="button"
+                                    data-chatbot-question="@tema.Pregunta"
+                                    aria-label="Consultar sobre @tema.Etiqueta">@tema.Etiqueta</button>
+                        }
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -46,16 +58,6 @@
         <div class="rs-chatbot__actions">
             <button class="rs-chatbot__retry" type="button" data-chatbot-retry hidden>Reintentar</button>
             <button class="rs-chatbot__cancel" type="button" data-chatbot-cancel hidden>Cancelar consulta</button>
-        </div>
-
-        <div class="rs-chatbot__suggestions" aria-label="Preguntas sugeridas">
-            <p class="rs-chatbot__suggestions-label">Preguntas para empezar</p>
-            <div class="rs-chatbot__suggestions-list">
-                @foreach (var pregunta in preguntas)
-                {
-                    <button class="rs-chatbot__suggestion" type="button" data-chatbot-question="@pregunta">@pregunta</button>
-                }
-            </div>
         </div>
 
         <form class="rs-chatbot__form" data-chatbot-form>

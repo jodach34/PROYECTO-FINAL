@@ -3330,3 +3330,145 @@ h1, h2, h3, h4, h5, .font-display {
     transition: none;
   }
 }
+
+/* Refinamiento de intensidad y temas compactos de RESCAUTA IA. */
+.rs-chatbot__panel {
+  background:
+    linear-gradient(145deg, rgba(250, 252, 255, 0.91), rgba(246, 250, 255, 0.86)) padding-box,
+    linear-gradient(132deg, rgba(52, 217, 232, 0.88), rgba(98, 183, 255, 0.86), rgba(167, 123, 255, 0.88), rgba(245, 138, 203, 0.82), rgba(85, 223, 196, 0.88)) border-box;
+  box-shadow: 0 28px 78px -28px rgba(67, 77, 127, 0.45), 0 9px 26px rgba(70, 121, 151, 0.16);
+}
+
+.rs-chatbot__header {
+  background:
+    radial-gradient(ellipse at 6% 0, rgba(52, 217, 232, 0.32), transparent 49%),
+    radial-gradient(ellipse at 48% 0, rgba(98, 183, 255, 0.24), transparent 51%),
+    radial-gradient(ellipse at 88% 9%, rgba(245, 138, 203, 0.3), transparent 48%),
+    linear-gradient(110deg, rgba(250, 253, 255, 0.95), rgba(246, 247, 255, 0.93) 53%, rgba(255, 248, 253, 0.95));
+}
+
+.rs-chatbot__avatar,
+.rs-chatbot__trigger-icon {
+  background: linear-gradient(140deg, rgba(52, 217, 232, 0.62), rgba(98, 183, 255, 0.58) 34%, rgba(167, 123, 255, 0.62) 65%, rgba(245, 138, 203, 0.56));
+  box-shadow: 0 5px 17px rgba(87, 123, 174, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.58);
+}
+
+.rs-chatbot__orb {
+  background:
+    radial-gradient(circle at 29% 23%, rgba(255, 255, 255, 0.99) 0 6%, rgba(255, 255, 255, 0.42) 17%, transparent 38%),
+    radial-gradient(ellipse at 73% 73%, rgba(85, 223, 196, 0.88), transparent 53%),
+    radial-gradient(ellipse at 75% 25%, rgba(167, 123, 255, 0.76), transparent 50%),
+    radial-gradient(ellipse at 25% 72%, rgba(245, 138, 203, 0.74), transparent 51%),
+    radial-gradient(ellipse at 35% 56%, rgba(52, 217, 232, 0.82), transparent 54%),
+    linear-gradient(140deg, rgba(85, 223, 196, 0.9), rgba(98, 183, 255, 0.82) 42%, rgba(167, 123, 255, 0.82) 72%, rgba(245, 138, 203, 0.78));
+  box-shadow: inset -5px -7px 14px rgba(71, 86, 145, 0.22), inset 4px 4px 12px rgba(255, 255, 255, 0.96), 0 0 12px rgba(98, 183, 255, 0.16);
+}
+
+.rs-chatbot__orb::before {
+  background: conic-gradient(from 25deg, rgba(52, 217, 232, 0.18), rgba(98, 183, 255, 0.68), rgba(167, 123, 255, 0.72), rgba(245, 138, 203, 0.62), rgba(85, 223, 196, 0.68), rgba(52, 217, 232, 0.18));
+  filter: blur(4px);
+  opacity: 0.9;
+}
+
+.rs-chatbot__orb::after {
+  background: rgba(255, 255, 255, 0.86);
+  filter: blur(3px);
+}
+
+.rs-chatbot__welcome {
+  max-width: 98%;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 255, 0.88));
+}
+
+.rs-chatbot__welcome p {
+  margin-top: 0.28rem;
+  margin-bottom: 0.38rem;
+}
+
+.rs-chatbot__welcome .rs-chatbot__suggestions {
+  margin-top: 0.68rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.rs-chatbot__welcome .rs-chatbot__suggestions-label {
+  margin: 0 0 0.42rem;
+  color: #596e88;
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.015em;
+  text-transform: none;
+}
+
+.rs-chatbot__welcome .rs-chatbot__suggestions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+  max-height: none;
+  overflow: visible;
+}
+
+.rs-chatbot__welcome .rs-chatbot__suggestion {
+  flex: 0 0 auto;
+  min-height: 2.25rem;
+  max-width: 100%;
+  padding: 0.31rem 0.62rem;
+  border: 1px solid rgba(124, 157, 201, 0.32);
+  border-radius: 999px;
+  background: linear-gradient(120deg, rgba(52, 217, 232, 0.17), rgba(98, 183, 255, 0.18) 35%, rgba(167, 123, 255, 0.16) 68%, rgba(245, 138, 203, 0.16));
+  color: #405773;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.25;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.8);
+  text-align: center;
+}
+
+.rs-chatbot__welcome .rs-chatbot__suggestion:hover:not(:disabled) {
+  border-color: rgba(112, 151, 211, 0.56);
+  background: linear-gradient(120deg, rgba(52, 217, 232, 0.28), rgba(98, 183, 255, 0.27) 35%, rgba(167, 123, 255, 0.25) 68%, rgba(245, 138, 203, 0.24));
+  color: #304866;
+}
+
+.rs-chatbot__trigger {
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.93), rgba(224, 249, 250, 0.92) 27%, rgba(231, 228, 252, 0.93) 68%, rgba(255, 233, 244, 0.92));
+  box-shadow: 0 13px 36px rgba(71, 95, 145, 0.24), 0 0 20px rgba(98, 183, 255, 0.12), inset 0 1px rgba(255, 255, 255, 0.98);
+}
+
+.rs-chatbot__trigger:hover {
+  box-shadow: 0 16px 40px rgba(71, 95, 145, 0.29), 0 0 24px rgba(167, 123, 255, 0.16), inset 0 1px rgba(255, 255, 255, 0.98);
+}
+
+.rs-chatbot__send {
+  background: linear-gradient(135deg, rgba(52, 217, 232, 0.82), rgba(98, 183, 255, 0.84) 36%, rgba(167, 123, 255, 0.82) 70%, rgba(245, 138, 203, 0.8));
+  box-shadow: 0 6px 16px rgba(93, 124, 185, 0.25), inset 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.rs-chatbot__send:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(52, 217, 232, 0.94), rgba(98, 183, 255, 0.94) 36%, rgba(167, 123, 255, 0.92) 70%, rgba(245, 138, 203, 0.9));
+  box-shadow: 0 8px 20px rgba(93, 124, 185, 0.3), inset 0 1px rgba(255, 255, 255, 0.9);
+}
+
+@media (max-width: 640px) {
+  .rs-chatbot__welcome .rs-chatbot__suggestions-list {
+    gap: 0.32rem;
+  }
+
+  .rs-chatbot__welcome .rs-chatbot__suggestion {
+    padding: 0.3rem 0.55rem;
+    font-size: 0.64rem;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .rs-chatbot__panel {
+    background:
+      linear-gradient(145deg, rgba(250, 252, 255, 0.99), rgba(246, 250, 255, 0.98)) padding-box,
+      linear-gradient(132deg, rgba(52, 217, 232, 0.88), rgba(98, 183, 255, 0.86), rgba(167, 123, 255, 0.88), rgba(245, 138, 203, 0.82), rgba(85, 223, 196, 0.88)) border-box;
+  }
+
+  .rs-chatbot__trigger {
+    background: linear-gradient(115deg, rgba(255, 255, 255, 0.99), rgba(224, 249, 250, 0.98) 27%, rgba(231, 228, 252, 0.98) 68%, rgba(255, 233, 244, 0.98));
+  }
+}
