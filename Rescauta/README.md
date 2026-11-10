@@ -227,6 +227,42 @@ dotnet user-secrets --project Rescauta.Api set "Database:ConnectionString" "Data
 En produccion, variables de entorno: `Database__Provider`, `Database__ConnectionString`,
 `ConnectionStrings__Redis`.
 
+### 3.8 Variables de Render
+
+Obligatorias para que el despliegue quede completo:
+
+| Variable | Servicio | Para que |
+|---|---|---|
+| `Api__BaseUrl` | MVC | URL publica de la API, obligatoriamente con `https` y barra final. El MVC no arranca si falta, apunta a localhost o usa HTTP. |
+| `Qr__SeguimientoBaseUrl` | API | URL publica del MVC que abre el seguimiento del QR. |
+| `Auth__ResetPasswordUrl` | API | URL publica del MVC para restablecer contrasena. No puede ser localhost. |
+| `Internal__ApiKey` | API y MVC | Mismo secreto en ambos, minimo 32 caracteres. Sin ella la API y el MVC no arrancan en produccion. Una clave distinta en el MVC hace que la API rechace sus solicitudes con 401. Nunca se registra en logs. |
+| `Auth__SeedAdminEmail` | API | Correo del administrador inicial. |
+| `Auth__SeedAdminPassword` | API | Contrasena del administrador inicial. Minimo 8 caracteres, con al menos una letra y un numero. No versionar. |
+
+El administrador inicial se crea solo si no existe una cuenta con ese correo. Si en
+produccion no hay ninguna cuenta administradora y no se configuran ambas variables, la
+API no arranca. Una cuenta existente nunca se modifica automaticamente.
+
+Los datos demo de `DatosSemilla` (comedores y movimientos ficticios) solo se siembran en
+`Development`. En produccion no se crean datos de ejemplo.
+
+Opcionales:
+
+| Variable | Para que |
+|---|---|
+| `Proxy__TrustedNetworks` | CIDR de proxies inmediatos separados por coma. Si se omite, se confia en loopback y en redes privadas IPv4, ULA IPv6 y link-local IPv6. En Render se puede restringir al rango exacto del proxy. |
+| `Email__Host`, `Email__Port`, `Email__EnableSsl`, `Email__User`, `Email__Password`, `Email__From`, `Email__FromName` | Envio de correos de recuperacion. Sin `Email__Host` el correo no se envia. |
+| `Gemini__ApiKey` | Generacion de respuestas del chatbot. Sin ella, el chatbot queda no disponible. |
+| `Qdrant__Url`, `Qdrant__ApiKey` | Busqueda de documentos del chatbot. Sin ellas, el chatbot queda no disponible. |
+| `ConnectionStrings__Redis` | Cache distribuida. Si falta, la API usa cache en memoria. |
+
+No se debe confiar en `X-Forwarded-For` para identificar al cliente: su primer valor lo
+puede falsificar el cliente. La API usa `CF-Connecting-IP` cuando la conexion inmediata
+es un proxy privado de Render, o `X-Rescauta-Client-Ip` cuando el MVC la reenvia con la
+clave `Internal__ApiKey`. Las cabeceras con IP privada, loopback, link-local o multicast
+se ignoran y se usa la conexion inmediata.
+
 ---
 
 ## 4. Convenciones transversales

@@ -29,13 +29,14 @@ WORKDIR /src
 # cacheada. Si se copiara todo el codigo antes de restaurar, cada cambio de una linea
 # invalidaria el restore y habria que volver a descargar paquetes.
 COPY Rescauta/Directory.Build.props Rescauta/Directory.Packages.props ./
-COPY Rescauta/Rescauta.sln ./
+COPY Rescauta/Rescauta.sln Rescauta/
 COPY Rescauta/Rescauta.Domain/Rescauta.Domain.csproj Rescauta/Rescauta.Domain/
 COPY Rescauta/Rescauta.Application/Rescauta.Application.csproj Rescauta/Rescauta.Application/
 COPY Rescauta/Rescauta.Infrastructure/Rescauta.Infrastructure.csproj Rescauta/Rescauta.Infrastructure/
 COPY Rescauta/Rescauta.Api/Rescauta.Api.csproj Rescauta/Rescauta.Api/
+COPY Rescauta/Rescauta.Tests/Rescauta.Tests.csproj Rescauta/Rescauta.Tests/
 
-# Se restaura la SOLUCION, no un proyecto suelto, para que los 4 queden resueltos
+# Se restaura la SOLUCION, no un proyecto suelto, para que los 5 queden resueltos
 # incluidas las referencias entre ellos.
 RUN dotnet restore Rescauta/Rescauta.sln
 

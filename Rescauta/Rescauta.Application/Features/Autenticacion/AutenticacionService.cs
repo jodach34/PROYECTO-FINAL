@@ -458,20 +458,8 @@ public sealed class AutenticacionService(
         return ValidarPassword(password);
     }
 
-    private string? ValidarPassword(string password)
-    {
-        if (string.IsNullOrWhiteSpace(password) || password.Length < _options.PasswordMinLength)
-        {
-            return $"La contrasena debe tener al menos {_options.PasswordMinLength} caracteres.";
-        }
-
-        if (!password.Any(char.IsLetter) || !password.Any(char.IsDigit))
-        {
-            return "La contrasena debe incluir al menos una letra y un numero.";
-        }
-
-        return null;
-    }
+    private string? ValidarPassword(string password) =>
+        PasswordPolicy.Validar(password, _options.PasswordMinLength);
 
     private static string GenerarToken()
     {

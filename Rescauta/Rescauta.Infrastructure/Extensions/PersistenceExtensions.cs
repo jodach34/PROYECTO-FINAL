@@ -22,14 +22,19 @@ namespace Rescauta.Infrastructure.Extensions;
 ///   2) Abre PR contra main. La persona "dueña del esquema" la revisa.
 ///   3) main aplica las migraciones pendientes al desplegar.
 ///
-/// Hasta que exista la primera migración, el método cae en EnsureCreated para que el
-/// SQLite de desarrollo quede utilizable de inmediato.
+/// Si no hay migraciones generadas (caso que ya no ocurre en este repositorio), el
+/// método cae en EnsureCreated para que el SQLite de desarrollo quede utilizable de
+/// inmediato. En produccion, con failFast en true, un error de conexion o de esquema
+/// detiene el arranque en vez de dejar la API respondiendo sin tablas.
 /// </summary>
 public static class PersistenceExtensions
 {
     public static async Task ApplyPendingMigrationsAsync(
         this IServiceProvider services,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool failFast = false,
+        bool seedDemoData = false,
+        bool requireAdmin = false)
     {
         using var scope = services.CreateScope();
 
@@ -55,6 +60,12 @@ public static class PersistenceExtensions
             // abortaria la creacion de la base de datos.
             if (!await context.PingAsync())
             {
+                if (failFast)
+                {
+                    throw new InvalidOperationException(
+                        "La base de datos no responde. En produccion la API no arranca sin esquema.");
+                }
+
                 logger.LogWarning("La base de datos no responde. Se omite la migracion.");
 
                 return;
@@ -95,7 +106,15 @@ public static class PersistenceExtensions
             // "base al dia" se quito: con el, una base recien creada con la primera
             // migracion aplicada se quedaria sin datos para siempre, porque en el segundo
             // arranque no volveria a pasar por aqui.
-            await DatosSemilla.SembrarAsync(context, logger, cancellationToken);
+            if (seedDemoData)
+            {
+                await DatosSemilla.SembrarAsync(context, logger, cancellationToken);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Datos demo omitidos: solo se siembran en Development.");
+            }
 
             var authOptions = scope.ServiceProvider
                 .GetRequiredService<IOptions<AuthOptions>>()
@@ -109,13 +128,22 @@ public static class PersistenceExtensions
                 passwordHashService,
                 authOptions,
                 logger,
+                requireAdmin,
                 cancellationToken);
         }
         catch (Exception ex)
         {
-            // La API no debe caerse por una base de datos no disponible en desarrollo:
-            // se registra y se sigue, para que el dev pueda corregir la configuracion.
-            logger.LogError(ex, "No se pudieron aplicar las migraciones. Revisar Database:Provider y Database:ConnectionString.");
+            logger.LogError(
+                ex,
+                "No se pudieron aplicar las migraciones. Revisar Database:Provider y Database:ConnectionString.");
+
+            // En desarrollo se registra y se sigue para que el dev pueda corregir la
+            // configuracion. En produccion se relanza: Render debe ver el despliegue
+            // fallido, no una API viva que responde 500 en cada consulta por falta de tablas.
+            if (failFast)
+            {
+                throw;
+            }
         }
     }
 }

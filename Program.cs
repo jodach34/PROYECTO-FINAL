@@ -9,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthorization();
+builder.Services.AddTransient<ClientIpForwardingHandler>();
 
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -140,7 +141,7 @@ builder.Services.AddHttpClient<RescautaApiClient>((servicios, cliente) =>
     // Timeout corto a proposito. Si la API esta caída, el operador no debe quedarse 100
     // segundos mirando una pagina en blanco: en 10 segundos ya tiene el aviso.
     cliente.Timeout = TimeSpan.FromSeconds(10);
-});
+}).AddHttpMessageHandler<ClientIpForwardingHandler>();
 
 // Cliente independiente para el chatbot RAG. Su timeout no altera el cliente general
 // de Rescauta, cuyos endpoints conservan el límite de 10 segundos.
@@ -157,7 +158,7 @@ builder.Services.AddHttpClient<ChatbotApiClient>((servicios, cliente) =>
 
     cliente.BaseAddress = new Uri(urlBase);
     cliente.Timeout = TimeSpan.FromSeconds(60);
-});
+}).AddHttpMessageHandler<ClientIpForwardingHandler>();
 
 // Cliente del servicio publico de OSRM. La URL tambien sale de configuracion para poder
 // apuntar a una instancia propia sin recompilar. El timeout es corto a proposito: el mapa
@@ -223,13 +224,14 @@ else if (!app.Environment.IsDevelopment())
     // disfrazado de aplicacion funcionando, y se diagnostica tarde y mal: nadie sospecha
     // de la variable de entorno cuando la pagina "carga".
     //
-    // Los dos fallos que se comprueban son los dos que ocurren en la practica:
+    // Los fallos que se comprueban son los que ocurren en la practica:
     //   1) La variable no esta definida. Sin ella se usaria el valor de
     //      appsettings.json, que es http://localhost:5266/.
     //   2) Apunta a localhost. Dentro del contenedor, localhost es el PROPIO contenedor
     //      del MVC, que no sirve /api/v1/comedores. El sitio abriria y cada pagina
     //      recibiria un 404 de si mismo, convertido por el cliente en el mismo aviso
     //      generico de "API no disponible".
+    //   3) Usa HTTP. La clave interna no puede viajar sin TLS; el MVC no arranca.
     // -----------------------------------------------------------------------------
     var urlApi = app.Configuration["Api:BaseUrl"];
 
@@ -253,6 +255,24 @@ else if (!app.Environment.IsDevelopment())
             $"Api__BaseUrl apunta a {uriApi.Host}, que dentro del contenedor es este mismo servicio del MVC, " +
             "no la API. Hay que poner la URL publica de rescauta-api, con https y con la barra al final.");
     }
+
+    if (app.Environment.IsProduction())
+    {
+        if (uriApi.Scheme != Uri.UriSchemeHttps)
+        {
+            throw new InvalidOperationException(
+                "Api__BaseUrl debe usar https en produccion. La clave interna del MVC no se envia por HTTP.");
+        }
+
+        var internalApiKey = app.Configuration["Internal:ApiKey"];
+
+        if (string.IsNullOrWhiteSpace(internalApiKey) || internalApiKey.Trim().Length < 32)
+        {
+            throw new InvalidOperationException(
+                "Internal__ApiKey es obligatoria en produccion y debe tener al menos 32 caracteres. " +
+                "Debe coincidir exactamente con Internal__ApiKey de rescauta-api. El valor no se registra en logs.");
+        }
+    }
 }
 
 // Registrar el cierre ANTES de app.Run(), que es donde el proceso empieza a atender.
@@ -265,18 +285,33 @@ if (apiLocal is not null)
 }
 
 // Configure the HTTP request pipeline.
+
+// Render termina el TLS en su proxy y reenvia al contenedor por http. Solo se acepta
+// X-Forwarded-Proto cuando la conexion inmediata viene de una red confiable (loopback
+// o las redes de Proxy:TrustedNetworks; por defecto, privadas IPv4 y ULA/link-local
+// IPv6), no de cualquier origen. X-Forwarded-For NO se procesa: la IP real se toma de
+// CF-Connecting-IP en ClientIpMiddleware y solo si el proxy inmediato es confiable.
+// Asi un cliente no puede falsificar su IP con una cabecera.
+var forwardedHeaders = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedProto,
+    ForwardLimit = 1
+};
+
+forwardedHeaders.KnownIPNetworks.Clear();
+forwardedHeaders.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("127.0.0.0/8"));
+forwardedHeaders.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("::1/128"));
+
+foreach (var red in TrustedProxyIp.LeerRedesConfianza(builder.Configuration))
+{
+    forwardedHeaders.KnownIPNetworks.Add(red);
+}
+
+app.UseForwardedHeaders(forwardedHeaders);
+app.UseMiddleware<ClientIpMiddleware>();
+
 if (!app.Environment.IsDevelopment())
 {
-    // Render termina el TLS en su proxy y reenvia al contenedor por http, anadiendo las
-    // cabeceras X-Forwarded-*. Sin UseForwardedHeaders la aplicacion ve cada peticion como
-    // http: las cookies de sesion y antiforgery se producen para http, Request.IsHttps da
-    // false y los links absolutos se generan con http:// en vez de https://. Se confiando
-    // las cabeceras SOLO en produccion, donde el unico que las pone es el proxy de Render.
-    app.UseForwardedHeaders(new ForwardedHeadersOptions
-    {
-        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-    });
-
     app.UseExceptionHandler("/Home/Error");
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();

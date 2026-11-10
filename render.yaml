@@ -35,6 +35,34 @@
 # poner la URL publica del MVC que abre el QR, algo como
 # https://rescauta-mvc.onrender.com/Seguimiento. Si falta, la API no arranca.
 #
+# Ademas, para produccion:
+#   - Auth__SeedAdminEmail / Auth__SeedAdminPassword: crean la primera cuenta
+#     administradora. La contrasena debe tener al menos 8 caracteres e incluir una
+#     letra y un numero. Si no existe ningun administrador y faltan ambas variables,
+#     la API no arranca. Una cuenta existente nunca se modifica automaticamente.
+#   - Auth__ResetPasswordUrl: URL publica del MVC para restablecer contrasena.
+#     Sin ella, la API no arranca en produccion porque el valor por defecto es localhost.
+#   - Internal__ApiKey: el MISMO valor secreto en rescauta-api y rescauta-mvc, con un
+#     minimo de 32 caracteres. Sin ella, ambos servicios no arrancan en produccion.
+#     Permite que la API confie en la IP real que le reenvia el MVC para el rate limiting.
+#     Si los valores no coinciden, la API rechaza las solicitudes del MVC con 401.
+#     La clave nunca se escribe en los logs.
+#
+# Los datos demo de DatosSemilla solo se siembran en Development. En produccion no se
+# crean comedores ni movimientos ficticios.
+#
+# Opcionales (se pueden anadir a mano en el panel de Render; no bloquean el arranque):
+#   - Proxy__TrustedNetworks: CIDR de proxies inmediatos separados por coma. Si se
+#     omite, se confia en loopback y en redes privadas IPv4, ULA IPv6 y link-local IPv6.
+#     En Render se puede restringir al rango exacto del proxy.
+#   - Email__Host, Email__Port, Email__EnableSsl, Email__User, Email__Password,
+#     Email__From, Email__FromName. Sin Email__Host, la recuperacion de contrasena
+#     registra un aviso y no envia correo.
+#   - Gemini__ApiKey: sin ella, el chatbot no puede generar respuestas.
+#   - Qdrant__Url, Qdrant__ApiKey: sin ellas, el chatbot no puede buscar documentos.
+#   - Database__MigrateOnStartup: true en este blueprint. En produccion, un fallo de
+#     migracion detiene el arranque (fail-fast) en vez de dejar la API sin tablas.
+#
 # -----------------------------------------------------------------------------
 # SOBRE SQLITE Y LA PERSISTENCIA - LEER ANTES DE QUEJARSE
 #
@@ -87,6 +115,20 @@ services:
       # URL publica del MVC que abre el QR. Render la pide al desplegar.
       - key: Qr__SeguimientoBaseUrl
         sync: false
+      # Primera cuenta administradora. Render pide ambos valores; no se guardan aqui.
+      # Si no existe ningun administrador y faltan, la API no arranca. La contrasena
+      # debe tener al menos 8 caracteres e incluir una letra y un numero.
+      - key: Auth__SeedAdminEmail
+        sync: false
+      - key: Auth__SeedAdminPassword
+        sync: false
+      # URL publica del MVC para el enlace de recuperacion. No puede ser localhost.
+      - key: Auth__ResetPasswordUrl
+        sync: false
+      # Secreto compartido con rescauta-mvc, minimo 32 caracteres. Debe ser
+      # exactamente el mismo valor; si no coincide, la API responde 401 al MVC.
+      - key: Internal__ApiKey
+        sync: false
 
     disk:
       name: rescauta-data
@@ -112,8 +154,12 @@ services:
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
-      # La URL publica de rescauta-api, con https y con la barra al final. Render la
-      # pide al desplegar. Si se deja mal, el MVC NO arranca y el motivo aparece en el
-      # log de este servicio (ver Program.cs).
+      # La URL publica de rescauta-api, obligatoriamente con https y con la barra al
+      # final. Render la pide al desplegar. Si se deja mal, el MVC NO arranca y el
+      # motivo aparece en el log de este servicio (ver Program.cs).
       - key: Api__BaseUrl
+        sync: false
+      # Debe coincidir exactamente con Internal__ApiKey de rescauta-api y tener al
+      # menos 32 caracteres. Si falta, el MVC no arranca.
+      - key: Internal__ApiKey
         sync: false
