@@ -1,88 +1,35 @@
 @model MapaViewModel
+@using System.Text.Json
 @{
     var mapCompact = ViewData["MapCompact"] as bool? == true;
+
+    // Solo se pintan comedores con una coordenada GPS util. Los que todavia no la tienen
+    // (Latitud y Longitud en cero) se omiten para no dibujar un pin en el oceano.
+    var marcadores = Model.Comedores
+        .Where(c => c.Latitud is >= -90m and <= 90m
+                    && c.Longitud is >= -180m and <= 180m
+                    && !(c.Latitud == 0m && c.Longitud == 0m))
+        .Select(c => new
+        {
+            id = c.Id,
+            nombre = c.Nombre,
+            distrito = c.Distrito,
+            estado = c.Estado,
+            etiqueta = Presentacion.EtiquetaEstado(c.Estado),
+            color = Presentacion.ColorEstado(c.Estado),
+            raciones = c.RacionesDiarias,
+            porcentaje = c.PorcentajeAbastecimiento,
+            lat = c.Latitud,
+            lng = c.Longitud,
+            url = Url.Action("Detalle", "Comedores", new { id = c.Id })
+        })
+        .ToList();
 }
 <div class="rs-map @(mapCompact ? "rs-map--compact" : null)" data-map>
     <div class="rs-map__viewport">
-        <div class="rs-map__stage" data-map-stage>
-            <svg viewBox="0 0 700 450" role="img" aria-label="Mapa esquemático de la red de comedores">
-                <defs>
-                    <linearGradient id="map-water" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stop-color="#bcd9d8" />
-                        <stop offset="100%" stop-color="#a8cdcb" />
-                    </linearGradient>
-                    <linearGradient id="map-green" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stop-color="#dfeadd" />
-                        <stop offset="100%" stop-color="#d3e3d2" />
-                    </linearGradient>
-                </defs>
-                <rect width="700" height="450" fill="#eef3ed" />
-                <path d="M0 88 C120 70 180 145 280 122 S470 50 700 104 L700 0 L0 0 Z" fill="#e4eee0" />
-                <path d="M0 330 C110 312 170 370 270 352 S470 300 700 340 L700 450 L0 450 Z" fill="#e7f0e3" />
-                <path d="M-20 372 C108 322 164 388 276 350 S462 308 720 356 L720 450 L-20 450 Z" fill="url(#map-water)" opacity="0.65" />
-                <path d="M-10 370 C108 320 164 386 276 348 S462 306 710 354" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.6" />
-                <g fill="url(#map-green)">
-                    <rect x="54" y="136" width="112" height="72" rx="20" />
-                    <rect x="484" y="128" width="130" height="88" rx="24" />
-                    <rect x="286" y="266" width="104" height="62" rx="18" />
-                </g>
-                <g fill="none" stroke="#d4e1d5" stroke-width="8" stroke-linecap="round" opacity="0.95">
-                    <path d="M118 0 L118 450" />
-                    <path d="M256 0 L256 450" />
-                    <path d="M420 0 L420 450" />
-                    <path d="M576 0 L576 450" />
-                    <path d="M0 132 L700 132" />
-                    <path d="M0 224 L700 224" />
-                    <path d="M0 312 L700 312" />
-                </g>
-                <g fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.9">
-                    <path d="M118 0 L118 450" />
-                    <path d="M256 0 L256 450" />
-                    <path d="M420 0 L420 450" />
-                    <path d="M576 0 L576 450" />
-                    <path d="M0 132 L700 132" />
-                    <path d="M0 224 L700 224" />
-                    <path d="M0 312 L700 312" />
-                </g>
-                <g class="rs-map__label" opacity="0.8">
-                    <text x="150" y="108">NORTE</text>
-                    <text x="330" y="206">CENTRO</text>
-                    <text x="500" y="286">ESTE</text>
-                    <text x="92" y="332">SUR</text>
-                </g>
-            </svg>
+        <div class="rs-map__canvas" data-map-canvas role="application" aria-label="Mapa GPS de los comedores de la red"></div>
 
-            @foreach (var comedor in Model.Comedores)
-            {
-                var x = Math.Clamp(comedor.MapaX, 6m, 94m);
-                var y = Math.Clamp(comedor.MapaY, 10m, 88m);
-
-                <a class="@Presentacion.ClasePin(comedor.Estado)"
-                   href="@Url.Action("Detalle", "Comedores", new { id = comedor.Id })"
-                   style="left:@x.ToString(System.Globalization.CultureInfo.InvariantCulture)%; top:@y.ToString(System.Globalization.CultureInfo.InvariantCulture)%;"
-                   data-estado="@comedor.Estado"
-                   data-zona="@comedor.Distrito"
-                   data-search="@($"{comedor.Nombre} {comedor.Distrito}")"
-                   aria-label="@($"{comedor.Nombre}, {comedor.Distrito}. Estado: {Presentacion.EtiquetaEstado(comedor.Estado)}")">
-                    <span class="rs-pin__dot" aria-hidden="true">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4 12h16" />
-                            <path d="M5 12a7 7 0 0 0 14 0" />
-                            <path d="M9 16h6" />
-                        </svg>
-                    </span>
-                    <span class="rs-pin__stem" aria-hidden="true"></span>
-                    <span class="rs-pin__tooltip">
-                        <strong>@comedor.Nombre</strong>
-                        <span>@comedor.Distrito · @comedor.RacionesDiarias raciones/día</span>
-                        <span class="mt-2 flex items-center justify-between gap-2">
-                            <span class="rs-badge rs-badge--@Presentacion.ColorEstado(comedor.Estado)">@Presentacion.EtiquetaEstado(comedor.Estado)</span>
-                            <span class="text-[0.62rem] font-black text-[#1b6b4a]">Ver ficha →</span>
-                        </span>
-                    </span>
-                </a>
-            }
-        </div>
+        <script type="application/json" data-map-data>@Html.Raw(JsonSerializer.Serialize(marcadores))</script>
 
         <div class="rs-map__controls" aria-label="Controles del mapa">
             <button class="rs-map__control" type="button" data-map-zoom-in aria-label="Acercar mapa">+</button>
@@ -106,6 +53,6 @@
         <span class="rs-map__zoom-value" data-map-zoom>100%</span>
     </div>
     <p class="rs-map__note">
-        <strong>Mapa esquemático:</strong> la posición representa la zona de referencia del comedor, no una ubicación GPS exacta. Selecciona un punto para abrir su ficha.
+        <strong>Mapa GPS:</strong> cada marcador corresponde a la ubicación real de un comedor registrado. Selecciona un punto para ver su información y abrir su ficha.
     </p>
 </div>

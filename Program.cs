@@ -159,6 +159,28 @@ builder.Services.AddHttpClient<ChatbotApiClient>((servicios, cliente) =>
     cliente.Timeout = TimeSpan.FromSeconds(60);
 });
 
+// Cliente del servicio publico de OSRM. La URL tambien sale de configuracion para poder
+// apuntar a una instancia propia sin recompilar. El timeout es corto a proposito: el mapa
+// de la ruta se pinta igual, solo que sin la linea, y el registro de la donacion nunca
+// depende de esta llamada.
+builder.Services.AddHttpClient<OsrmRouteService>((servicios, cliente) =>
+{
+    var configuracion = servicios.GetRequiredService<IConfiguration>();
+
+    var urlBase = configuracion["Osrm:BaseUrl"];
+
+    if (string.IsNullOrWhiteSpace(urlBase))
+    {
+        urlBase = "https://router.project-osrm.org/";
+    }
+
+    cliente.BaseAddress = new Uri(urlBase);
+    cliente.Timeout = TimeSpan.FromSeconds(8);
+    cliente.DefaultRequestHeaders.UserAgent.ParseAdd("Rescauta/1.0");
+});
+
+builder.Services.AddScoped<RutaDonacionService>();
+
 
 var app = builder.Build();
 

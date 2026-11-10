@@ -49,6 +49,16 @@ public sealed class ComedorConfig : IEntityTypeConfiguration<Comedor>
             .HasPrecision(5, 2)
             .HasComment("Posicion vertical del pin en el mapa, 0-100.");
 
+        // Coordenadas GPS reales (WGS84). Se guardan con seis decimales, que es precision
+        // de aproximadamente 11 cm: suficiente para ubicar un comedor en la ciudad.
+        builder.Property(c => c.Latitud)
+            .HasPrecision(9, 6)
+            .HasComment("Latitud GPS del comedor (WGS84).");
+
+        builder.Property(c => c.Longitud)
+            .HasPrecision(9, 6)
+            .HasComment("Longitud GPS del comedor (WGS84).");
+
         // La relacion se declara desde el lado del comedor (WithMany) porque la navegacion
         // vive en la entidad. El comportamiento de borrado lo fija InsumoConfig, que es
         // donde esta la FK.

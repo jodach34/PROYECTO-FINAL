@@ -117,12 +117,19 @@ public sealed record BancoAlimentosViewModel
     /// <summary>Codigo de seguimiento del ultimo registro exitoso.</summary>
     public string? Exito { get; init; }
 
+    /// <summary>Donacion recien registrada, para mostrar su QR en la confirmacion.</summary>
+    public DonacionSeguimientoPublica? Confirmacion { get; init; }
+
     /// <summary>Lo que el operador escribio, para repoblar el formulario tras un error.</summary>
     public string Donante { get; init; } = string.Empty;
 
     public int Cantidad { get; init; }
 
     public string? PuntoRecojo { get; init; }
+
+    public decimal? LatitudOrigen { get; init; }
+
+    public decimal? LongitudOrigen { get; init; }
 
     public Guid? InsumoId { get; init; }
 
@@ -150,21 +157,26 @@ public class DonacionViewModel
     public string Donante { get; set; } = string.Empty;
 
     public string? PuntoRecojo { get; set; }
+
+    // Las coordenadas del origen no se enlazan aqui a proposito: llegan como texto
+    // (OrigenLatitud/OrigenLongitud) y el controlador las lee con InvariantCulture.
+    // Un decimal enlazado por el binder depende de la cultura del servidor y el mapa
+    // siempre escribe el punto decimal.
 }
 
 /// <summary>
 /// Seguimiento publico de una donacion. El donante ingresa el codigo que recibio al
 /// registrarla y ve el estado real, el comedor destino y el insumo donado.
 ///
-/// No muestra la lista completa de donaciones: solo la que corresponde al codigo buscado.
-/// Ese codigo es el mismo que genera el Banco de Alimentos, asi que las dos pantallas
-/// forman un flujo cerrado.
+/// No muestra la lista completa de donaciones ni datos privados: solo la donacion que
+/// corresponde al codigo buscado, su destino, insumo, cantidad y estado. Ese codigo es el
+/// mismo que genera el Banco de Alimentos, asi que las dos pantallas forman un flujo cerrado.
 /// </summary>
 public sealed record SeguimientoViewModel
 {
     public string Codigo { get; init; } = string.Empty;
 
-    public DonacionRegistrada? Donacion { get; init; }
+    public DonacionSeguimientoPublica? Donacion { get; init; }
 
     public string? Error { get; init; }
 
@@ -174,6 +186,21 @@ public sealed record SeguimientoViewModel
 
     public bool EsEstado(string estado) =>
         string.Equals(Donacion?.Estado, estado, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>
+/// QR publico de una donacion. Se usa en la confirmacion del Banco de Alimentos, en el
+/// seguimiento del donante y en el detalle administrativo.
+/// </summary>
+public sealed record QrDonacionViewModel
+{
+    public string Codigo { get; init; } = string.Empty;
+
+    /// <summary>Data URI PNG generado por la API. Null si no se pudo generar.</summary>
+    public string? DataUri { get; init; }
+
+    /// <summary>URL publica de seguimiento, para el enlace de respaldo.</summary>
+    public string? SeguimientoUrl { get; init; }
 }
 
 /// <summary>Listado administrativo de donaciones con filtros y paginacion.</summary>
@@ -299,4 +326,45 @@ public static class Presentacion
 
     public static bool PuedeEliminarDonacion(string estado) =>
         estado is "Pendiente" or "Cancelada" or "Anulada";
+}
+
+/// <summary>
+/// Parametros del componente de mapa de ruta. El endpoint es la accion MVC que consulta
+/// OSRM; el JavaScript lo llama despues de pintar la pagina, de modo que un fallo del
+/// servicio de rutas nunca bloquea el registro ni la carga de la donacion.
+/// </summary>
+public sealed record RutaDonacionMapaViewModel
+{
+    public string Endpoint { get; init; } = string.Empty;
+}
+
+/// <summary>Respuesta JSON del endpoint de ruta. Los nombres viajan en camelCase.</summary>
+public sealed record RutaDonacionRespuesta
+{
+    public bool Disponible { get; init; }
+
+    /// <summary>sin_origen, sin_destino, osrm_no_disponible, api_no_disponible...</summary>
+    public string? Motivo { get; init; }
+
+    public string Mensaje { get; init; } = string.Empty;
+
+    public double DistanciaKm { get; init; }
+
+    public double DuracionMinutos { get; init; }
+
+    public PuntoRuta? Origen { get; init; }
+
+    public PuntoRuta? Destino { get; init; }
+
+    /// <summary>Puntos [latitud, longitud] listos para L.polyline.</summary>
+    public IReadOnlyList<double[]> Geometria { get; init; } = [];
+}
+
+public sealed record PuntoRuta
+{
+    public double Lat { get; init; }
+
+    public double Lng { get; init; }
+
+    public string Nombre { get; init; } = string.Empty;
 }

@@ -84,8 +84,19 @@
             <span class="rs-badge rs-badge--brand">Alta</span>
         </div>
         <div class="rs-panel__body">
-            <form method="post" asp-controller="Inventario" asp-action="CrearInsumo" class="grid gap-4">
+            <form method="post" asp-controller="Inventario" asp-action="CrearInsumo" class="grid gap-4" id="FormInsumo">
                 <input type="hidden" name="ComedorId" value="@Model.Insumo.ComedorId" />
+
+                <div>
+                    <label class="rs-label" for="CodigoBarras">Código de barras (opcional)</label>
+                    <div class="flex flex-col gap-2 sm:flex-row">
+                        <input class="rs-input" id="CodigoBarras" type="text" inputmode="numeric" maxlength="14" placeholder="Ej. 3017620422003" autocomplete="off" />
+                        <button class="rs-btn rs-btn--secondary shrink-0" id="BuscarCodigoBarras" type="button">Buscar producto</button>
+                    </div>
+                    <p class="rs-help" id="CodigoBarrasEstado" role="status" aria-live="polite">
+                        Consulta Open Food Facts para completar el nombre y la unidad. Puedes editar lo que se autocomplete.
+                    </p>
+                </div>
 
                 <div>
                     <label class="rs-label" for="Nombre">Nombre del insumo *</label>
@@ -300,3 +311,99 @@
         }
     </section>
 </div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const formulario = document.getElementById('FormInsumo');
+            const codigo = document.getElementById('CodigoBarras');
+            const boton = document.getElementById('BuscarCodigoBarras');
+            const estado = document.getElementById('CodigoBarrasEstado');
+            const nombre = document.getElementById('Nombre');
+            const unidad = document.getElementById('UnidadMedida');
+
+            if (!formulario || !codigo || !boton || !estado || !nombre || !unidad) {
+                return;
+            }
+
+            const urlBusqueda = '@Url.Action("BuscarProducto", "Inventario")';
+            let buscando = false;
+
+            function mostrarEstado(mensaje, tipo) {
+                estado.textContent = mensaje;
+                estado.style.color = tipo === 'error'
+                    ? '#b33a48'
+                    : tipo === 'ok'
+                        ? '#2b8a5b'
+                        : '';
+            }
+
+            async function buscar() {
+                if (buscando) {
+                    return;
+                }
+
+                const valor = codigo.value.trim();
+
+                if (!valor) {
+                    mostrarEstado('Ingresa un código de barras para buscar.', 'error');
+                    codigo.focus();
+                    return;
+                }
+
+                buscando = true;
+                boton.disabled = true;
+                boton.setAttribute('aria-busy', 'true');
+                boton.textContent = 'Buscando...';
+                mostrarEstado('Consultando Open Food Facts...', '');
+
+                try {
+                    const respuesta = await fetch(
+                        `${urlBusqueda}?codigo=${encodeURIComponent(valor)}`,
+                        { headers: { Accept: 'application/json' } });
+
+                    const datos = await respuesta.json().catch(() => ({}));
+
+                    if (!respuesta.ok) {
+                        mostrarEstado(
+                            datos.mensaje || 'No se pudo consultar el producto. Puedes registrarlo manualmente.',
+                            'error');
+                        return;
+                    }
+
+                    nombre.value = datos.nombre || nombre.value;
+
+                    if (datos.unidadSugerida) {
+                        unidad.value = datos.unidadSugerida;
+                    }
+
+                    const detalle = [datos.marca, datos.cantidad].filter(Boolean).join(' · ');
+
+                    mostrarEstado(
+                        detalle
+                            ? `Producto encontrado: ${detalle}. Revisa y ajusta los datos antes de guardar.`
+                            : 'Producto encontrado. Revisa y ajusta los datos antes de guardar.',
+                        'ok');
+                } catch {
+                    mostrarEstado(
+                        'No se pudo consultar el producto. Puedes registrarlo manualmente.',
+                        'error');
+                } finally {
+                    buscando = false;
+                    boton.disabled = false;
+                    boton.removeAttribute('aria-busy');
+                    boton.textContent = 'Buscar producto';
+                }
+            }
+
+            boton.addEventListener('click', buscar);
+
+            codigo.addEventListener('keydown', (evento) => {
+                if (evento.key === 'Enter') {
+                    evento.preventDefault();
+                    buscar();
+                }
+            });
+        })();
+    </script>
+}

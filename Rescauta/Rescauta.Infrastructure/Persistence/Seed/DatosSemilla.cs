@@ -35,11 +35,15 @@ public static class DatosSemilla
         string Telefono,
         decimal MapaX,
         decimal MapaY,
+        decimal Latitud,
+        decimal Longitud,
         (string Nombre, string Unidad, decimal Stock, decimal Tope)[] Insumos);
 
     /// <summary>
-    /// Los 5 comedores de la maqueta, con los mismos nombres, distritos y posiciones de pin
-    /// que tenia la version estatica. Cambiar los numeros de stock es lo esperado: son datos.
+    /// Los 5 comedores de la maqueta, con los mismos nombres y distritos que tenia la
+    /// version estatica. Las coordenadas GPS salen de OpenStreetMap para el distrito o la
+    /// avenida indicada en la direccion; no son numeros generados al azar.
+    /// Cambiar los numeros de stock es lo esperado: son datos.
     /// </summary>
     private static readonly ComedorSemilla[] Comedores =
     [
@@ -51,6 +55,8 @@ public static class DatosSemilla
             "+51 984 732 104",
             30m,
             41m,
+            -12.1553917m,
+            -76.9724438m,
             [
                 ("Arroz Extra Fino", "kg", 12m, 80m),
                 ("Agua Potable", "litro", 450m, 1000m),
@@ -65,6 +71,8 @@ public static class DatosSemilla
             "+51 921 554 780",
             49m,
             62m,
+            -12.1766437m,
+            -76.9189677m,
             [
                 ("Arroz Extra Fino", "kg", 36m, 80m),
                 ("Agua Potable", "litro", 900m, 1000m),
@@ -79,6 +87,8 @@ public static class DatosSemilla
             "+51 933 118 265",
             63m,
             32m,
+            -11.9297668m,
+            -76.7029335m,
             [
                 ("Arroz Extra Fino", "kg", 66m, 80m),
                 ("Agua Potable", "litro", 1000m, 1000m),
@@ -93,6 +103,8 @@ public static class DatosSemilla
             "+51 945 207 613",
             22m,
             76m,
+            -12.2168944m,
+            -76.9491496m,
             [
                 ("Arroz Extra Fino", "kg", 30m, 80m),
                 ("Agua Potable", "litro", 400m, 1000m),
@@ -107,6 +119,8 @@ public static class DatosSemilla
             "+51 958 440 391",
             57m,
             80m,
+            -12.4684687m,
+            -76.7724919m,
             [
                 ("Arroz Extra Fino", "kg", 59m, 80m),
                 ("Agua Potable", "litro", 820m, 1000m),
@@ -138,7 +152,9 @@ public static class DatosSemilla
                 fila.Direccion,
                 fila.Telefono,
                 fila.MapaX,
-                fila.MapaY);
+                fila.MapaY,
+                fila.Latitud,
+                fila.Longitud);
 
             // El comedor se registra en el contexto ANTES que sus insumos. Si solo se
             // anadieran los insumos, EF no tendria al padre de la FK y el INSERT fallaria

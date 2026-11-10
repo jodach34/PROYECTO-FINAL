@@ -38,6 +38,7 @@ public sealed class DonacionService(
     IInventoryNotifier notifier,
     IValidator<RegistrarDonacionDto> registrarValidator,
     IValidator<MotivoDonacionDto> motivoValidator,
+    IQrGeneratorService qrGenerator,
     ILogger<DonacionService> logger) : IDonacionService
 {
     private const string PrefijoCodigo = "DON";
@@ -103,6 +104,8 @@ public sealed class DonacionService(
                 insumo.UnidadMedida,
                 comedor.Nombre,
                 puntoRecojo: donacion.PuntoRecojo,
+                latitudOrigen: donacion.LatitudOrigen,
+                longitudOrigen: donacion.LongitudOrigen,
                 fechaDonacion: null,
                 usuarioId: usuarioId);
         }
@@ -134,7 +137,10 @@ public sealed class DonacionService(
 
         await InvalidarCacheAsync(cancellationToken);
 
-        var resultado = Mapear(entidad, insumo.StockActual);
+        var resultado = await ConQrAsync(
+            Mapear(entidad, insumo.StockActual),
+            entidad.CodigoSeguimiento,
+            cancellationToken);
 
         logger.LogInformation(
             "Donacion registrada en estado Pendiente. Codigo={Codigo}, Comedor={Comedor}, " +
@@ -250,7 +256,11 @@ public sealed class DonacionService(
 
         var stock = await ObtenerStockAsync(entidad.InsumoId, cancellationToken);
 
-        return Result<DonacionResultDto>.Success(Mapear(entidad, stock));
+        return Result<DonacionResultDto>.Success(
+            await ConQrAsync(
+                Mapear(entidad, stock),
+                entidad.CodigoSeguimiento,
+                cancellationToken));
     }
 
     public async Task<Result<PagedResult<DonacionResultDto>>> BuscarAsync(
@@ -388,7 +398,11 @@ public sealed class DonacionService(
 
         var stock = await ObtenerStockAsync(entidad.InsumoId, cancellationToken);
 
-        return Result<DonacionResultDto>.Success(Mapear(entidad, stock));
+        return Result<DonacionResultDto>.Success(
+            await ConQrAsync(
+                Mapear(entidad, stock),
+                entidad.CodigoSeguimiento,
+                cancellationToken));
     }
 
     public async Task<Result<IReadOnlyList<DonacionHistorialDto>>> ObtenerHistorialAsync(
@@ -757,6 +771,34 @@ public sealed class DonacionService(
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Agrega el QR publico al DTO. Si QRCoder falla, la donacion ya esta registrada o ya
+    /// se leyo: se devuelve el DTO sin QR en vez de romper la respuesta completa.
+    /// </summary>
+    private async Task<DonacionResultDto> ConQrAsync(
+        DonacionResultDto donacion,
+        string codigoSeguimiento,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var qr = await qrGenerator.GenerarQrDonacionAsync(
+                codigoSeguimiento,
+                cancellationToken);
+
+            return donacion with { QrDataUri = qr };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex,
+                "No se pudo generar el QR de la donacion {Codigo}.",
+                codigoSeguimiento);
+
+            return donacion;
+        }
+    }
+
     private static DonacionResultDto Mapear(Donacion donacion, decimal stock) =>
         new()
         {
@@ -770,6 +812,8 @@ public sealed class DonacionService(
             UnidadMedida = donacion.UnidadMedida,
             Donante = donacion.Donante,
             PuntoRecojo = donacion.PuntoRecojo,
+            LatitudOrigen = donacion.LatitudOrigen,
+            LongitudOrigen = donacion.LongitudOrigen,
             Estado = donacion.Estado.ToString(),
             FechaDonacion = donacion.FechaDonacion,
             FechaConfirmacion = donacion.FechaConfirmacion,

@@ -57,7 +57,9 @@ public sealed class ComedorService(
                 comedor.Direccion,
                 comedor.ContactoTelefono,
                 comedor.MapaX,
-                comedor.MapaY);
+                comedor.MapaY,
+                comedor.Latitud,
+                comedor.Longitud);
         }
         catch (DomainException ex)
         {
@@ -103,7 +105,9 @@ public sealed class ComedorService(
             ContactoTelefono = entidad.ContactoTelefono,
             RacionesDiarias = entidad.RacionesDiarias,
             MapaX = entidad.MapaX,
-            MapaY = entidad.MapaY
+            MapaY = entidad.MapaY,
+            Latitud = entidad.Latitud,
+            Longitud = entidad.Longitud
         });
     }
 
@@ -131,6 +135,8 @@ public sealed class ComedorService(
                 c.RacionesDiarias,
                 c.MapaX,
                 c.MapaY,
+                c.Latitud,
+                c.Longitud,
                 Suministros = c.Suministros
                     .Select(i => new { i.StockActual, i.StockMaximo })
                     .ToList()
@@ -152,6 +158,8 @@ public sealed class ComedorService(
                     RacionesDiarias = f.RacionesDiarias,
                     MapaX = f.MapaX,
                     MapaY = f.MapaY,
+                    Latitud = f.Latitud,
+                    Longitud = f.Longitud,
                     PorcentajeAbastecimiento = porcentaje,
                     Estado = f.Suministros.Count == 0
                         ? EstadoComedor.SinDatos
@@ -194,6 +202,8 @@ public sealed class ComedorService(
                 c.RacionesDiarias,
                 c.MapaX,
                 c.MapaY,
+                c.Latitud,
+                c.Longitud,
                 Insumos = c.Suministros
                     .Select(i => new
                     {
@@ -254,6 +264,8 @@ public sealed class ComedorService(
             RacionesDiarias = detalle.RacionesDiarias,
             MapaX = detalle.MapaX,
             MapaY = detalle.MapaY,
+            Latitud = detalle.Latitud,
+            Longitud = detalle.Longitud,
             PorcentajeAbastecimiento = porcentaje,
             Estado = inventario.Count == 0
                 ? EstadoComedor.SinDatos

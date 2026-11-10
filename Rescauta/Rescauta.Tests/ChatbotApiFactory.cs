@@ -15,6 +15,16 @@ namespace Rescauta.Tests;
 /// </summary>
 internal sealed class ChatbotApiFactory : WebApplicationFactory<Program>
 {
+    static ChatbotApiFactory()
+    {
+        // Program valida esta URL antes de construir el host. La configuracion en memoria
+        // del factory se aplica despues de ese punto, por eso se define como variable de
+        // entorno del proceso de pruebas. No se usa en produccion.
+        Environment.SetEnvironmentVariable(
+            "Qr__SeguimientoBaseUrl",
+            "https://seguimiento.test/Seguimiento");
+    }
+
     public IGeminiClient Gemini { get; } = Substitute.For<IGeminiClient>();
 
     public IQdrantClient Qdrant { get; } = Substitute.For<IQdrantClient>();
@@ -33,7 +43,8 @@ internal sealed class ChatbotApiFactory : WebApplicationFactory<Program>
                 ["RabbitMq:Enabled"] = "false",
                 ["ConnectionStrings:Redis"] = "",
                 ["ConnectionStrings:RabbitMq"] = "",
-                ["Cors:AllowAnyOrigin"] = "true"
+                ["Cors:AllowAnyOrigin"] = "true",
+                ["Qr:SeguimientoBaseUrl"] = "https://seguimiento.test/Seguimiento"
             });
         });
 

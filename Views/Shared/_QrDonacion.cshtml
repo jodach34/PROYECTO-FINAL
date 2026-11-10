@@ -1,0 +1,43 @@
+@model QrDonacionViewModel
+<section class="rs-panel" data-qr-donacion>
+    <div class="rs-panel__head">
+        <div>
+            <h2 class="rs-panel__title">Código QR de seguimiento</h2>
+            <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Escanea este código para abrir el seguimiento público de la donación.</p>
+        </div>
+        <span class="rs-badge rs-badge--brand">QR</span>
+    </div>
+    <div class="rs-panel__body">
+        <div class="flex flex-col items-center gap-4 sm:flex-row">
+            @if (!string.IsNullOrWhiteSpace(Model.DataUri))
+            {
+                <img src="@Model.DataUri"
+                     alt="Código QR de la donación @Model.Codigo"
+                     width="180"
+                     height="180"
+                     class="shrink-0 rounded-xl border border-[#dce7df] bg-white p-2" />
+            }
+            else
+            {
+                <div class="rs-alert rs-alert--warn w-full sm:w-auto" role="alert">
+                    <span>No se pudo generar el QR en este momento. El código de seguimiento sigue siendo válido.</span>
+                </div>
+            }
+
+            <div class="min-w-0">
+                <p class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Código de seguimiento</p>
+                <p class="rs-mono mt-1 break-all font-display text-lg font-extrabold tracking-[-0.02em]">@Model.Codigo</p>
+                <p class="mt-2 text-[0.72rem] leading-5 text-[#5f6f66]">
+                    El QR contiene solo la URL pública de seguimiento; no incluye datos personales del donante.
+                </p>
+                @if (!string.IsNullOrWhiteSpace(Model.SeguimientoUrl))
+                {
+                    <a class="mt-2 inline-block text-[0.72rem] font-extrabold text-[#1b6b4a] underline underline-offset-2"
+                       href="@Model.SeguimientoUrl">
+                        Abrir seguimiento público
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+</section>

@@ -14,7 +14,9 @@ namespace PROYECTO_FINAL.Controllers;
 /// token. Aqui solo se traduce el resultado a TempData y se redirige.
 /// </summary>
 [Authorize(Roles = "Operador,Coordinador,Administrador")]
-public class DonacionesController(RescautaApiClient api) : Controller
+public class DonacionesController(
+    RescautaApiClient api,
+    RutaDonacionService rutas) : Controller
 {
     public async Task<IActionResult> Index(
         string? estado,
@@ -105,6 +107,28 @@ public class DonacionesController(RescautaApiClient api) : Controller
         }
 
         return View(modelo);
+    }
+
+    /// <summary>
+    /// Ruta por carretera desde el punto de recogida hasta el comedor destino. La llama el
+    /// mapa por AJAX; devuelve el motivo cuando falta el origen o cuando OSRM no responde,
+    /// sin afectar la donacion ya registrada.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> Ruta(Guid id, CancellationToken cancellationToken)
+    {
+        var donacion = await api.ObtenerDonacionAsync(id, cancellationToken);
+
+        if (!donacion.Exito || donacion.Valor is null)
+        {
+            return Json(new RutaDonacionRespuesta
+            {
+                Motivo = donacion.Codigo ?? "api_no_disponible",
+                Mensaje = donacion.Mensaje ?? "No se pudo leer la donacion."
+            });
+        }
+
+        return Json(await rutas.CalcularAsync(donacion.Valor, cancellationToken));
     }
 
     [HttpPost]

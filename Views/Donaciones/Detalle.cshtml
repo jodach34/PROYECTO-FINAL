@@ -9,6 +9,7 @@
     var estado = donacion?.Estado ?? string.Empty;
     var puedeCerrar = donacion is not null && Presentacion.PuedeCerrarDonacion(estado);
     var puedeEliminar = donacion is not null && Presentacion.PuedeEliminarDonacion(estado);
+    var esCerrada = estado is "Cancelada" or "Anulada";
 }
 
 <div class="rs-page-head">
@@ -127,6 +128,13 @@
         </section>
 
         <div class="space-y-4">
+            @await Html.PartialAsync("_QrDonacion", new QrDonacionViewModel
+            {
+                Codigo = donacion.CodigoSeguimiento,
+                DataUri = donacion.QrDataUri,
+                SeguimientoUrl = Url.Action("Index", "Seguimiento", new { codigo = donacion.CodigoSeguimiento }, Context.Request.Scheme)
+            })
+
             @if (puedeCerrar)
             {
                 <section class="rs-panel">
@@ -211,4 +219,12 @@
             </section>
         </div>
     </div>
+
+    @if (!esCerrada)
+    {
+        @await Html.PartialAsync("_MapaRutaDonacion", new RutaDonacionMapaViewModel
+        {
+            Endpoint = Url.Action("Ruta", "Donaciones", new { id = donacion.DonacionId }) ?? string.Empty
+        })
+    }
 }
