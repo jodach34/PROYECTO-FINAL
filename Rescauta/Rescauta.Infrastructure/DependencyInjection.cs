@@ -17,8 +17,10 @@ using Rescauta.Infrastructure.Messaging;
 using Rescauta.Infrastructure.Options;
 using Rescauta.Infrastructure.Persistence;
 using Rescauta.Infrastructure.Persistence.Interceptors;
+using Rescauta.Infrastructure.Products;
 using Rescauta.Infrastructure.RealTime;
 using Rescauta.Infrastructure.Security;
+using Rescauta.Infrastructure.Services;
 
 namespace Rescauta.Infrastructure;
 
@@ -50,7 +52,11 @@ public static class DependencyInjection
         services.AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName));
 
+        services.AddOptions<QrOptions>()
+            .Bind(configuration.GetSection(QrOptions.SectionName));
+
         AddAiClients(services, configuration);
+        AddOpenFoodFactsClient(services, configuration);
 
         services.AddHttpContextAccessor();
         services.AddScoped<AuditableEntityInterceptor>();
@@ -59,6 +65,11 @@ public static class DependencyInjection
         services.AddScoped<IRescautaNotifier, RescautaRealtimeNotifier>();
         services.TryAddSingleton<IPasswordHashService, PasswordHashService>();
         services.TryAddScoped<IEmailSender, SmtpEmailSender>();
+
+        // Generador del QR publico de donacion. Scoped aunque sea stateless, para no tener
+        // que recordar que es seguro como singleton si manana dependiera de un servicio
+        // con estado por peticion.
+        services.TryAddScoped<IQrGeneratorService, QrGeneratorService>();
 
         // Modulo Kardex: notificador tipado de inventario sobre el hub compartido.
         // Singleton, no Scoped ni Transient: IHubContext<RescautaHub> es singleton con
@@ -121,6 +132,30 @@ public static class DependencyInjection
 
             client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
             client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        });
+    }
+
+    /// <summary>
+    /// Cliente tipado de Open Food Facts para el autocompletado del alta de insumos.
+    /// Sin ValidateOnStart: la API debe arrancar aunque la fuente externa no responda.
+    /// </summary>
+    private static void AddOpenFoodFactsClient(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<OpenFoodFactsOptions>()
+            .Bind(configuration.GetSection(OpenFoodFactsOptions.SectionName));
+
+        services.AddHttpClient<IOpenFoodFactsClient, OpenFoodFactsClient>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<IOptions<OpenFoodFactsOptions>>().Value;
+
+            var baseUrl = Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var uri)
+                ? uri
+                : new Uri("https://world.openfoodfacts.org/");
+
+            client.BaseAddress = baseUrl;
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Rescauta/1.0");
         });
     }
 

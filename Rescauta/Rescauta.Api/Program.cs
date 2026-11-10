@@ -55,6 +55,30 @@ builder.Services
     .AddOptions<RabbitMqOptions>()
     .Bind(builder.Configuration.GetSection(RabbitMqOptions.SectionName));
 
+// El QR se imprime y se escanea fuera de este proceso: su URL base no se puede deducir
+// del host de la peticion. En desarrollo se define en appsettings.Development.json; en
+// produccion debe venir de Qr__SeguimientoBaseUrl y apuntar a la URL publica del MVC.
+var qrSeguimientoBaseUrl = builder.Configuration["Qr:SeguimientoBaseUrl"]?.Trim();
+
+if (string.IsNullOrWhiteSpace(qrSeguimientoBaseUrl))
+{
+    throw new InvalidOperationException(
+        "Falta configurar 'Qr:SeguimientoBaseUrl'. En desarrollo usar appsettings.Development.json; " +
+        "en produccion definir la variable Qr__SeguimientoBaseUrl con la URL publica del MVC.");
+}
+
+if (!builder.Environment.IsDevelopment())
+{
+    if (!Uri.TryCreate(qrSeguimientoBaseUrl, UriKind.Absolute, out var qrUri) ||
+        qrUri.IsLoopback ||
+        (qrUri.Scheme != Uri.UriSchemeHttp && qrUri.Scheme != Uri.UriSchemeHttps))
+    {
+        throw new InvalidOperationException(
+            "Qr:SeguimientoBaseUrl debe ser una URL absoluta publica del MVC, no localhost. " +
+            "Ejemplo: https://rescauta-mvc.onrender.com/Seguimiento");
+    }
+}
+
 // -----------------------------------------------------------------------------
 // 2. Capa Application: casos de uso (MediatR), validacion (FluentValidation) y
 //    registro de los servicios de Application. Todo se escanea por reflexion desde

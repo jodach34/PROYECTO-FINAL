@@ -19,6 +19,33 @@ public sealed class InventarioController(RescautaApiClient api) : Controller
         return View(modelo with { Exito = TempData["Exito"] as string });
     }
 
+    [HttpGet]
+    public async Task<IActionResult> BuscarProducto(
+        string? codigo,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return BadRequest(new { mensaje = "Ingresa un código de barras para buscar." });
+        }
+
+        var resultado = await api.BuscarProductoPorCodigoAsync(codigo, cancellationToken);
+
+        if (resultado.Exito)
+        {
+            return Ok(resultado.Valor);
+        }
+
+        var estado = resultado.Codigo switch
+        {
+            "producto.codigo_invalido" => StatusCodes.Status400BadRequest,
+            "producto.no_encontrado" => StatusCodes.Status404NotFound,
+            _ => StatusCodes.Status502BadGateway
+        };
+
+        return StatusCode(estado, new { mensaje = resultado.Mensaje });
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CrearInsumo(

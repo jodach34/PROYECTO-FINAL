@@ -46,7 +46,9 @@ public sealed class Comedor : BaseEntity, IAggregateRoot
         string direccion,
         string contactoTelefono,
         decimal mapaX,
-        decimal mapaY)
+        decimal mapaY,
+        decimal latitud = 0m,
+        decimal longitud = 0m)
     {
         if (string.IsNullOrWhiteSpace(nombre))
         {
@@ -102,6 +104,20 @@ public sealed class Comedor : BaseEntity, IAggregateRoot
                 nameof(mapaY));
         }
 
+        if (latitud is < -90m or > 90m)
+        {
+            throw new DomainException(
+                $"La latitud debe estar entre -90 y 90. Recibido: {latitud}.",
+                nameof(latitud));
+        }
+
+        if (longitud is < -180m or > 180m)
+        {
+            throw new DomainException(
+                $"La longitud debe estar entre -180 y 180. Recibido: {longitud}.",
+                nameof(longitud));
+        }
+
         return new Comedor
         {
             Nombre = nombre.Trim(),
@@ -110,7 +126,9 @@ public sealed class Comedor : BaseEntity, IAggregateRoot
             Direccion = direccion.Trim(),
             ContactoTelefono = (contactoTelefono ?? string.Empty).Trim(),
             MapaX = mapaX,
-            MapaY = mapaY
+            MapaY = mapaY,
+            Latitud = latitud,
+            Longitud = longitud
         };
     }
 
@@ -130,6 +148,12 @@ public sealed class Comedor : BaseEntity, IAggregateRoot
 
     /// <summary>Posicion vertical del pin, en porcentaje sobre el alto del mapa (0-100).</summary>
     public decimal MapaY { get; private set; }
+
+    /// <summary>Latitud GPS real del comedor (WGS84).</summary>
+    public decimal Latitud { get; private set; }
+
+    /// <summary>Longitud GPS real del comedor (WGS84).</summary>
+    public decimal Longitud { get; private set; }
 
     /// <summary>
     /// Da de baja al comedor. Es borrado logico: sus movimientos de kardex se conservan,

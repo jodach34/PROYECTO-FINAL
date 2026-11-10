@@ -20,6 +20,12 @@ public sealed class ComedorResumen
     /// <summary>Posicion vertical del pin en el mapa, de 0 a 100.</summary>
     public decimal MapaY { get; set; }
 
+    /// <summary>Latitud GPS real del comedor (WGS84).</summary>
+    public decimal Latitud { get; set; }
+
+    /// <summary>Longitud GPS real del comedor (WGS84).</summary>
+    public decimal Longitud { get; set; }
+
     public decimal PorcentajeAbastecimiento { get; set; }
 
     /// <summary>Abastecido, Alerta, Emergencia o SinDatos. Ya viene como texto de la API.</summary>
@@ -38,6 +44,8 @@ public sealed class ComedorDetalle
     public int RacionesDiarias { get; set; }
     public decimal MapaX { get; set; }
     public decimal MapaY { get; set; }
+    public decimal Latitud { get; set; }
+    public decimal Longitud { get; set; }
     public decimal PorcentajeAbastecimiento { get; set; }
     public string Estado { get; set; } = string.Empty;
     public List<InsumoInventario> Inventario { get; set; } = [];
@@ -74,6 +82,15 @@ public sealed class InsumoRegistrado
     public string UnidadMedida { get; set; } = string.Empty;
     public decimal StockActual { get; set; }
     public decimal StockMaximo { get; set; }
+}
+
+public sealed class ProductoBarcode
+{
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+    public string? Marca { get; set; }
+    public string? Cantidad { get; set; }
+    public string UnidadSugerida { get; set; } = "unidad";
 }
 
 public sealed class MovimientoKardexRequest
@@ -128,6 +145,13 @@ public sealed class DonacionRegistrada
     public string UnidadMedida { get; set; } = string.Empty;
     public string Donante { get; set; } = string.Empty;
     public string? PuntoRecojo { get; set; }
+
+    /// <summary>Latitud GPS del punto de recogida. Null si no se registro.</summary>
+    public decimal? LatitudOrigen { get; set; }
+
+    /// <summary>Longitud GPS del punto de recogida. Null si no se registro.</summary>
+    public decimal? LongitudOrigen { get; set; }
+
     public string Estado { get; set; } = string.Empty;
     public DateTimeOffset FechaDonacion { get; set; }
     public DateTimeOffset? FechaConfirmacion { get; set; }
@@ -136,6 +160,40 @@ public sealed class DonacionRegistrada
     public DateTimeOffset? FechaCierre { get; set; }
     public string? MotivoCierre { get; set; }
     public decimal StockResultante { get; set; }
+
+    /// <summary>Data URI PNG del QR publico de seguimiento. Null si no se pudo generar.</summary>
+    public string? QrDataUri { get; set; }
+}
+
+/// <summary>
+/// Seguimiento publico por codigo. La API no envia donante, punto de recojo, GPS, stock,
+/// motivo de cierre ni ids internos; solo lo necesario para que el donante vea su aporte.
+/// </summary>
+public sealed class DonacionSeguimientoPublica
+{
+    public string CodigoSeguimiento { get; set; } = string.Empty;
+    public string InsumoNombre { get; set; } = string.Empty;
+    public string ComedorNombre { get; set; } = string.Empty;
+    public int Cantidad { get; set; }
+    public string UnidadMedida { get; set; } = string.Empty;
+    public string Estado { get; set; } = string.Empty;
+    public DateTimeOffset FechaDonacion { get; set; }
+    public DateTimeOffset? FechaConfirmacion { get; set; }
+    public DateTimeOffset? FechaEnTransito { get; set; }
+    public DateTimeOffset? FechaEntrega { get; set; }
+    public DateTimeOffset? FechaCierre { get; set; }
+    public string? QrDataUri { get; set; }
+}
+
+/// <summary>
+/// Datos minimos que expone la API para calcular la ruta del mapa publico. No contiene
+/// datos del donante ni el texto del punto de recojo.
+/// </summary>
+public sealed class DonacionRutaApi
+{
+    public Guid ComedorId { get; set; }
+    public decimal? LatitudOrigen { get; set; }
+    public decimal? LongitudOrigen { get; set; }
 }
 
 public sealed class DonacionHistorialApi
@@ -182,6 +240,12 @@ public sealed class DonacionRequest
     public int Cantidad { get; set; }
     public string Donante { get; set; } = string.Empty;
     public string PuntoRecojo { get; set; } = string.Empty;
+
+    /// <summary>Latitud GPS del punto de recogida. Opcional.</summary>
+    public decimal? LatitudOrigen { get; set; }
+
+    /// <summary>Longitud GPS del punto de recogida. Opcional.</summary>
+    public decimal? LongitudOrigen { get; set; }
 }
 
 /// <summary>

@@ -32,6 +32,12 @@ public sealed record RegistrarDonacionDto
 
     /// <summary>Direccion o punto de recojo. Se guarda en la donacion y en el kardex.</summary>
     public string PuntoRecojo { get; init; } = string.Empty;
+
+    /// <summary>Latitud GPS del punto de recogida. Opcional: sin ella no se puede rutear.</summary>
+    public decimal? LatitudOrigen { get; init; }
+
+    /// <summary>Longitud GPS del punto de recogida. Opcional: sin ella no se puede rutear.</summary>
+    public decimal? LongitudOrigen { get; init; }
 }
 
 /// <summary>Motivo obligatorio para cancelar o anular una donacion.</summary>
@@ -86,6 +92,12 @@ public sealed record DonacionResultDto
 
     public string? PuntoRecojo { get; init; }
 
+    /// <summary>Latitud GPS del origen. Null cuando no se registro la ubicacion.</summary>
+    public decimal? LatitudOrigen { get; init; }
+
+    /// <summary>Longitud GPS del origen. Null cuando no se registro la ubicacion.</summary>
+    public decimal? LongitudOrigen { get; init; }
+
     /// <summary>Estado actual en texto, para que el cliente no conozca el enum.</summary>
     public string Estado { get; init; } = string.Empty;
 
@@ -106,6 +118,57 @@ public sealed record DonacionResultDto
     /// (la donacion queda pendiente); al confirmar refleja la entrada al kardex.
     /// </summary>
     public decimal StockResultante { get; init; }
+
+    /// <summary>
+    /// Data URI PNG del QR publico de seguimiento. Null cuando la donacion no tiene codigo
+    /// o cuando la generacion fallo; el resto de la respuesta sigue siendo util.
+    /// </summary>
+    public string? QrDataUri { get; init; }
+}
+
+/// <summary>
+/// Proyeccion publica del seguimiento por codigo. No incluye datos personales ni internos:
+/// el donante solo necesita su codigo, el estado, el destino y el insumo donado. El QR se
+/// mantiene para que la pagina pueda ofrecer el enlace de respaldo.
+/// </summary>
+public sealed record DonacionSeguimientoPublicoDto
+{
+    public string CodigoSeguimiento { get; init; } = string.Empty;
+
+    public string InsumoNombre { get; init; } = string.Empty;
+
+    public string ComedorNombre { get; init; } = string.Empty;
+
+    public int Cantidad { get; init; }
+
+    public string UnidadMedida { get; init; } = string.Empty;
+
+    public string Estado { get; init; } = string.Empty;
+
+    public DateTimeOffset FechaDonacion { get; init; }
+
+    public DateTimeOffset? FechaConfirmacion { get; init; }
+
+    public DateTimeOffset? FechaEnTransito { get; init; }
+
+    public DateTimeOffset? FechaEntrega { get; init; }
+
+    public DateTimeOffset? FechaCierre { get; init; }
+
+    public string? QrDataUri { get; init; }
+}
+
+/// <summary>
+/// Datos minimos para calcular la ruta por carretera desde el punto de recogida hasta el
+/// comedor. No incluye donante, punto de recojo textual ni ningun otro dato del seguimiento.
+/// </summary>
+public sealed record DonacionRutaDto
+{
+    public Guid ComedorId { get; init; }
+
+    public decimal? LatitudOrigen { get; init; }
+
+    public decimal? LongitudOrigen { get; init; }
 }
 
 /// <summary>Un cambio de estado auditado de una donacion.</summary>

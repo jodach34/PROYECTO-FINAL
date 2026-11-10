@@ -67,19 +67,56 @@ public sealed class DonacionesController(IDonacionService donacionService) : Api
     }
 
     /// <summary>
-    /// Busca una donacion por su codigo publico de seguimiento. Es la lectura que usa el
-    /// donante desde la pagina de Seguimiento; no expone la lista completa.
+    /// Busca una donacion por su codigo publico de seguimiento. Devuelve solo la proyeccion
+    /// publica: sin donante, punto de recojo, GPS, stock, motivo de cierre ni ids internos.
     /// </summary>
     [HttpGet("seguimiento/{codigo}")]
     [AllowAnonymous]
-    [ProducesResponseType<DonacionResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<DonacionSeguimientoPublicoDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<DonacionResultDto>> ObtenerPorCodigo(
+    public async Task<ActionResult<DonacionSeguimientoPublicoDto>> ObtenerPorCodigo(
         string codigo,
         CancellationToken cancellationToken)
     {
-        return FromDonacionResult(
-            await donacionService.ObtenerPorCodigoAsync(codigo, cancellationToken));
+        var resultado = await donacionService.ObtenerPorCodigoAsync(codigo, cancellationToken);
+
+        if (resultado.IsFailure)
+        {
+            return StatusCode(
+                ObtenerStatus(resultado.ErrorCode),
+                CrearProblem(resultado.ErrorCode, resultado.ErrorMessage));
+        }
+
+        return Ok(AProyeccionPublica(resultado.Value));
+    }
+
+    /// <summary>
+    /// Datos minimos de ruta para el mapa publico. Solo devuelve el comedor destino y el
+    /// origen GPS necesario para OSRM; no incluye donante ni el texto del punto de recojo.
+    /// </summary>
+    [HttpGet("seguimiento/{codigo}/ruta")]
+    [AllowAnonymous]
+    [ProducesResponseType<DonacionRutaDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DonacionRutaDto>> ObtenerRutaPorCodigo(
+        string codigo,
+        CancellationToken cancellationToken)
+    {
+        var resultado = await donacionService.ObtenerPorCodigoAsync(codigo, cancellationToken);
+
+        if (resultado.IsFailure)
+        {
+            return StatusCode(
+                ObtenerStatus(resultado.ErrorCode),
+                CrearProblem(resultado.ErrorCode, resultado.ErrorMessage));
+        }
+
+        return Ok(new DonacionRutaDto
+        {
+            ComedorId = resultado.Value.ComedorId,
+            LatitudOrigen = resultado.Value.LatitudOrigen,
+            LongitudOrigen = resultado.Value.LongitudOrigen
+        });
     }
 
     /// <summary>Listado administrativo paginado y filtrado por comedor.</summary>
@@ -316,6 +353,23 @@ public sealed class DonacionesController(IDonacionService donacionService) : Api
         Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
             ? id
             : null;
+
+    private static DonacionSeguimientoPublicoDto AProyeccionPublica(DonacionResultDto donacion) =>
+        new()
+        {
+            CodigoSeguimiento = donacion.CodigoSeguimiento,
+            InsumoNombre = donacion.InsumoNombre,
+            ComedorNombre = donacion.ComedorNombre,
+            Cantidad = donacion.Cantidad,
+            UnidadMedida = donacion.UnidadMedida,
+            Estado = donacion.Estado,
+            FechaDonacion = donacion.FechaDonacion,
+            FechaConfirmacion = donacion.FechaConfirmacion,
+            FechaEnTransito = donacion.FechaEnTransito,
+            FechaEntrega = donacion.FechaEntrega,
+            FechaCierre = donacion.FechaCierre,
+            QrDataUri = donacion.QrDataUri
+        };
 
     private ActionResult<T> FromDonacionResult<T>(Result<T> result)
     {

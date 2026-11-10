@@ -8,6 +8,8 @@
         .OrderBy(c => c.Estado switch { "Emergencia" => 0, "Alerta" => 1, "Abastecido" => 2, _ => 3 })
         .ThenBy(c => c.PorcentajeAbastecimiento)
         .ToList();
+    var origenLat = Model.LatitudOrigen?.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+    var origenLng = Model.LongitudOrigen?.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
 }
 
 <div class="rs-page-head">
@@ -33,6 +35,22 @@
             <span class="rs-mono ml-1 rounded bg-white/60 px-1.5 py-0.5 font-black">@Model.Exito</span>
             <a class="ml-1 font-extrabold underline underline-offset-2" asp-controller="Seguimiento" asp-action="Index" asp-route-codigo="@Model.Exito">Seguir mi donación</a>
         </span>
+    </div>
+
+    <div class="mb-4">
+        @await Html.PartialAsync("_QrDonacion", new QrDonacionViewModel
+        {
+            Codigo = Model.Exito,
+            DataUri = Model.Confirmacion?.QrDataUri,
+            SeguimientoUrl = Url.Action("Index", "Seguimiento", new { codigo = Model.Exito }, Context.Request.Scheme)
+        })
+    </div>
+
+    <div class="mb-4">
+        @await Html.PartialAsync("_MapaRutaDonacion", new RutaDonacionMapaViewModel
+        {
+            Endpoint = Url.Action("Ruta", "FoodBank", new { codigo = Model.Exito }) ?? string.Empty
+        })
     </div>
 }
 
@@ -88,6 +106,24 @@
                         <label class="rs-label" for="PuntoRecojo">Punto de recogida</label>
                         <input class="rs-input" id="PuntoRecojo" name="PuntoRecojo" type="text" value="@Model.PuntoRecojo" placeholder="Dirección del donante" />
                     </div>
+                </div>
+
+                <div class="rounded-xl border border-[#dce7df] bg-[#fbfdfb] p-3.5" data-origin-picker>
+                    <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <p class="text-[0.72rem] font-black">Ubicación GPS del punto de recogida</p>
+                            <p class="mt-0.5 text-[0.66rem] font-semibold leading-5 text-[#5f6f66]">Haz clic en el mapa para marcar el origen. Sin este punto no se puede calcular la ruta hacia el comedor.</p>
+                        </div>
+                        <button class="rs-btn rs-btn--ghost rs-btn--sm" type="button" data-origin-clear>Quitar ubicación</button>
+                    </div>
+                    <div class="rs-map rs-map--compact" data-origin-map>
+                        <div class="rs-map__viewport">
+                            <div class="rs-map__canvas" data-origin-canvas role="application" aria-label="Mapa para marcar el punto de recogida de la donación"></div>
+                        </div>
+                        <p class="rs-map__note" data-origin-status role="status">Sin ubicación marcada.</p>
+                    </div>
+                    <input type="hidden" id="OrigenLatitud" name="OrigenLatitud" value="@origenLat" data-origin-lat />
+                    <input type="hidden" id="OrigenLongitud" name="OrigenLongitud" value="@origenLng" data-origin-lng />
                 </div>
 
                 <div>

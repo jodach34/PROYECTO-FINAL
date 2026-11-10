@@ -59,6 +59,15 @@ public sealed class RescautaApiClient(
             cancellationToken);
     }
 
+    public async Task<Result<ProductoBarcode>> BuscarProductoPorCodigoAsync(
+        string codigo,
+        CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<ProductoBarcode>(
+            $"/api/v1/productos/barcode/{Uri.EscapeDataString(codigo.Trim())}",
+            cancellationToken);
+    }
+
     public async Task<Result<MovimientoKardexResult>> RegistrarMovimientoAsync(
         MovimientoKardexRequest request,
         CancellationToken cancellationToken = default)
@@ -236,12 +245,21 @@ public sealed class RescautaApiClient(
             cancellationToken);
     }
 
-    public async Task<Result<DonacionRegistrada>> ObtenerDonacionPorCodigoAsync(
+    public async Task<Result<DonacionSeguimientoPublica>> ObtenerDonacionPorCodigoAsync(
         string codigo,
         CancellationToken cancellationToken = default)
     {
-        return await GetAsync<DonacionRegistrada>(
+        return await GetAsync<DonacionSeguimientoPublica>(
             $"/api/v1/donaciones/seguimiento/{Uri.EscapeDataString(codigo)}",
+            cancellationToken);
+    }
+
+    public async Task<Result<DonacionRutaApi>> ObtenerRutaDonacionPorCodigoAsync(
+        string codigo,
+        CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<DonacionRutaApi>(
+            $"/api/v1/donaciones/seguimiento/{Uri.EscapeDataString(codigo)}/ruta",
             cancellationToken);
     }
 

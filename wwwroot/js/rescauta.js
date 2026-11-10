@@ -52,63 +52,437 @@
     });
   }
 
+  const MAP_ICON_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/><path d="M5 12a7 7 0 0 0 14 0"/><path d="M9 16h6"/></svg>';
+
+  const mapColor = function (color) {
+    return ["ok", "alerta", "critico", "muted"].indexOf(color) === -1 ? "muted" : color;
+  };
+
+  const createMapIcon = function (color) {
+    const safeColor = mapColor(color);
+
+    return L.divIcon({
+      className: "rs-map-marker",
+      html: '<div class="rs-map-marker__pin rs-map-marker__pin--' + safeColor + '">' +
+        '<span class="rs-map-marker__dot">' + MAP_ICON_SVG + "</span>" +
+        '<span class="rs-map-marker__stem"></span>' +
+        "</div>",
+      iconSize: [36, 44],
+      iconAnchor: [18, 44],
+      popupAnchor: [0, -38]
+    });
+  };
+
+  const createMapPopup = function (comedor) {
+    const popup = document.createElement("div");
+    popup.className = "rs-map-popup";
+
+    const title = document.createElement("strong");
+    title.className = "rs-map-popup__title";
+    title.textContent = comedor.nombre || "Comedor";
+
+    const meta = document.createElement("span");
+    meta.className = "rs-map-popup__meta";
+    meta.textContent = (comedor.distrito || "Sin distrito") + " · " +
+      (Number(comedor.raciones) || 0) + " raciones/día";
+
+    const footer = document.createElement("span");
+    footer.className = "rs-map-popup__footer";
+
+    const badge = document.createElement("span");
+    badge.className = "rs-badge rs-badge--" + mapColor(comedor.color);
+    badge.textContent = comedor.etiqueta || "Sin datos";
+
+    const link = document.createElement("a");
+    link.className = "rs-map-popup__link";
+    link.href = comedor.url || "#";
+    link.textContent = "Ver ficha →";
+
+    footer.appendChild(badge);
+    footer.appendChild(link);
+    popup.appendChild(title);
+    popup.appendChild(meta);
+    popup.appendChild(footer);
+
+    return popup;
+  };
+
   function initMaps() {
     selectAll("[data-map]").forEach(function (map) {
-      const stage = select("[data-map-stage]", map);
+      const canvas = select("[data-map-canvas]", map);
+      const dataNode = select("[data-map-data]", map);
       const zoomValue = select("[data-map-zoom]", map);
       const zoomIn = select("[data-map-zoom-in]", map);
       const zoomOut = select("[data-map-zoom-out]", map);
       const reset = select("[data-map-reset]", map);
 
-      let zoom = 1;
+      if (!canvas || !dataNode || typeof L === "undefined") {
+        return;
+      }
 
-      const applyZoom = function () {
-        if (!stage) return;
+      let comedores = [];
 
-        zoom = Math.min(1.6, Math.max(1, zoom));
-        stage.style.transform = "scale(" + zoom.toFixed(2) + ")";
-        if (zoomValue) zoomValue.textContent = Math.round(zoom * 100) + "%";
+      try {
+        comedores = JSON.parse(dataNode.textContent || "[]");
+      } catch (error) {
+        comedores = [];
+      }
+
+      const leafletMap = L.map(canvas, {
+        zoomControl: false,
+        scrollWheelZoom: false,
+        attributionControl: true,
+        minZoom: 5,
+        maxZoom: 19
+      }).setView([-12.0464, -77.0428], 11);
+
+      map._rescautaLeafletMap = leafletMap;
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(leafletMap);
+
+      const bounds = L.latLngBounds([]);
+
+      comedores.forEach(function (comedor) {
+        const lat = Number(comedor.lat);
+        const lng = Number(comedor.lng);
+
+        if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) {
+          return;
+        }
+
+        const marker = L.marker([lat, lng], {
+          icon: createMapIcon(comedor.color),
+          title: comedor.nombre,
+          alt: comedor.nombre,
+          keyboard: true
+        });
+
+        marker.bindPopup(createMapPopup(comedor), { maxWidth: 300 });
+        marker.addTo(leafletMap);
+
+        const element = marker.getElement();
+
+        if (element) {
+          element.dataset.mapPin = "";
+          element.dataset.comedorId = String(comedor.id || "");
+          element.dataset.estado = comedor.estado || "";
+          element.dataset.zona = comedor.distrito || "";
+          element.dataset.search = (comedor.nombre || "") + " " + (comedor.distrito || "");
+          element.setAttribute("aria-label", (comedor.nombre || "Comedor") + ", " +
+            (comedor.distrito || "sin distrito") + ". " + (comedor.etiqueta || "Sin datos"));
+        }
+
+        bounds.extend([lat, lng]);
+      });
+
+      let initialZoom = leafletMap.getZoom();
+
+      const syncZoomLabel = function () {
+        if (!zoomValue) return;
+
+        const percentage = Math.round(Math.pow(2, leafletMap.getZoom() - initialZoom) * 100);
+        zoomValue.textContent = percentage + "%";
       };
+
+      const fitToMarkers = function () {
+        if (bounds.isValid()) {
+          leafletMap.fitBounds(bounds, { padding: [38, 38], maxZoom: 14 });
+        } else {
+          leafletMap.setView([-12.0464, -77.0428], 11);
+        }
+
+        initialZoom = leafletMap.getZoom();
+        syncZoomLabel();
+      };
+
+      fitToMarkers();
+      leafletMap.on("zoomend", syncZoomLabel);
 
       if (zoomIn) {
         zoomIn.addEventListener("click", function () {
-          zoom += 0.15;
-          applyZoom();
+          leafletMap.zoomIn();
         });
       }
 
       if (zoomOut) {
         zoomOut.addEventListener("click", function () {
-          zoom -= 0.15;
-          applyZoom();
+          leafletMap.zoomOut();
         });
       }
 
       if (reset) {
         reset.addEventListener("click", function () {
-          zoom = 1;
-          applyZoom();
-          selectAll(".rs-pin.is-open", map).forEach(function (pin) {
-            pin.classList.remove("is-open");
-          });
+          leafletMap.closePopup();
+          fitToMarkers();
         });
       }
 
-      selectAll(".rs-pin", map).forEach(function (pin) {
-        pin.addEventListener("click", function (event) {
-          const isLink = pin.tagName === "A";
+      window.addEventListener("resize", function () {
+        leafletMap.invalidateSize();
+      });
 
-          if (isLink && !pin.classList.contains("is-open")) {
-            event.preventDefault();
+      window.setTimeout(function () {
+        leafletMap.invalidateSize();
+      }, 250);
+    });
+  }
+
+  function initOriginPickers() {
+    selectAll("[data-origin-picker]").forEach(function (picker) {
+      const canvas = select("[data-origin-canvas]", picker);
+      const latInput = select("[data-origin-lat]", picker);
+      const lngInput = select("[data-origin-lng]", picker);
+      const status = select("[data-origin-status]", picker);
+      const clear = select("[data-origin-clear]", picker);
+
+      if (!canvas || !latInput || !lngInput || typeof L === "undefined") {
+        return;
+      }
+
+      const readInput = function (input, limite) {
+        const raw = (input.value || "").trim();
+
+        if (!raw) return null;
+
+        const value = Number(raw);
+
+        return isFinite(value) && Math.abs(value) <= limite ? value : null;
+      };
+
+      const setStatus = function (text) {
+        if (status) status.textContent = text;
+      };
+
+      const leafletMap = L.map(canvas, {
+        scrollWheelZoom: false,
+        minZoom: 5,
+        maxZoom: 19
+      });
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(leafletMap);
+
+      let marker = null;
+
+      const writePoint = function (latlng) {
+        const lat = Number(latlng.lat);
+        const lng = Number(latlng.lng);
+
+        if (!isFinite(lat) || !isFinite(lng) ||
+            Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+          return;
+        }
+
+        latInput.value = lat.toFixed(6);
+        lngInput.value = lng.toFixed(6);
+
+        if (!marker) {
+          marker = L.marker([lat, lng], { draggable: true }).addTo(leafletMap);
+          marker.on("dragend", function () {
+            writePoint(marker.getLatLng());
+          });
+        } else {
+          marker.setLatLng([lat, lng]);
+        }
+
+        setStatus("Ubicación marcada: " + lat.toFixed(5) + ", " + lng.toFixed(5) + ".");
+      };
+
+      leafletMap.on("click", function (event) {
+        writePoint(event.latlng);
+      });
+
+      const lat = readInput(latInput, 90);
+      const lng = readInput(lngInput, 180);
+
+      if (lat !== null && lng !== null && !(lat === 0 && lng === 0)) {
+        writePoint({ lat: lat, lng: lng });
+        leafletMap.setView([lat, lng], 15);
+      } else {
+        leafletMap.setView([-12.0464, -77.0428], 11);
+        setStatus("Sin ubicación marcada. Haz clic en el mapa para marcarla.");
+      }
+
+      if (clear) {
+        clear.addEventListener("click", function () {
+          latInput.value = "";
+          lngInput.value = "";
+
+          if (marker) {
+            leafletMap.removeLayer(marker);
+            marker = null;
           }
 
-          selectAll(".rs-pin.is-open", map).forEach(function (other) {
-            if (other !== pin) other.classList.remove("is-open");
-          });
-
-          pin.classList.toggle("is-open");
+          setStatus("Sin ubicación marcada. Haz clic en el mapa para marcarla.");
         });
+      }
+
+      window.addEventListener("resize", function () {
+        leafletMap.invalidateSize();
       });
+
+      window.setTimeout(function () {
+        leafletMap.invalidateSize();
+      }, 250);
+    });
+  }
+
+  function initRouteMaps() {
+    selectAll("[data-route-map]").forEach(function (map) {
+      const canvas = select("[data-route-canvas]", map);
+      const endpoint = map.getAttribute("data-route-endpoint");
+      const status = select("[data-route-status]", map);
+      const panel = map.closest("[data-route-panel]") || map;
+      const alert = select("[data-route-alert]", panel);
+
+      if (!canvas || !endpoint || typeof L === "undefined") {
+        return;
+      }
+
+      const setStatus = function (text) {
+        if (status) status.textContent = text;
+      };
+
+      const showAlert = function (text) {
+        if (!alert) return;
+
+        alert.textContent = text || "";
+        alert.hidden = !text;
+      };
+
+      setStatus("Calculando ruta…");
+
+      const leafletMap = L.map(canvas, {
+        scrollWheelZoom: false,
+        minZoom: 5,
+        maxZoom: 19
+      }).setView([-12.0464, -77.0428], 11);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(leafletMap);
+
+      const layers = L.layerGroup().addTo(leafletMap);
+      const bounds = L.latLngBounds([]);
+
+      const readPoint = function (raw) {
+        if (!raw) return null;
+
+        const lat = Number(raw.lat);
+        const lng = Number(raw.lng);
+
+        if (!isFinite(lat) || !isFinite(lng) ||
+            Math.abs(lat) > 90 || Math.abs(lng) > 180 ||
+            (lat === 0 && lng === 0)) {
+          return null;
+        }
+
+        return { lat: lat, lng: lng, nombre: raw.nombre || "" };
+      };
+
+      const addPoint = function (value, color) {
+        if (!value) return;
+
+        const marker = L.circleMarker([value.lat, value.lng], {
+          radius: 8,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: color,
+          fillOpacity: 1
+        }).addTo(layers);
+
+        marker.bindTooltip(value.nombre || "Punto", { direction: "top", offset: [0, -8] });
+        bounds.extend([value.lat, value.lng]);
+      };
+
+      const formatNumber = function (value, decimals) {
+        const number = Number(value);
+
+        if (!isFinite(number)) return "0";
+
+        return number.toLocaleString("es-PE", {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals
+        });
+      };
+
+      const pintar = function (data) {
+        const origen = readPoint(data.origen);
+        const destino = readPoint(data.destino);
+        const geometria = Array.isArray(data.geometria)
+          ? data.geometria
+            .filter(function (coordenada) {
+              return Array.isArray(coordenada) && coordenada.length >= 2 &&
+                isFinite(Number(coordenada[0])) && isFinite(Number(coordenada[1]));
+            })
+            .map(function (coordenada) {
+              return [Number(coordenada[0]), Number(coordenada[1])];
+            })
+          : [];
+
+        addPoint(origen, "#1b6b4a");
+        addPoint(destino, "#0f3d2e");
+
+        if (data.disponible && geometria.length > 1) {
+          const linea = L.polyline(geometria, {
+            color: "#1b6b4a",
+            weight: 5,
+            opacity: 0.85,
+            lineCap: "round",
+            lineJoin: "round"
+          }).addTo(layers);
+
+          bounds.extend(linea.getBounds());
+        }
+
+        if (bounds.isValid()) {
+          leafletMap.fitBounds(bounds, { padding: [32, 32], maxZoom: 15 });
+        } else if (origen) {
+          leafletMap.setView([origen.lat, origen.lng], 14);
+        } else if (destino) {
+          leafletMap.setView([destino.lat, destino.lng], 14);
+        }
+
+        if (data.disponible) {
+          setStatus("Ruta por carretera: " + formatNumber(data.distanciaKm, 1) +
+            " km · " + formatNumber(data.duracionMinutos, 0) + " min aprox.");
+          showAlert("");
+        } else {
+          setStatus("Ruta no disponible.");
+          showAlert(data.mensaje || "No se pudo calcular la ruta.");
+        }
+      };
+
+      fetch(endpoint, {
+        headers: { "Accept": "application/json" },
+        credentials: "same-origin"
+      })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error("HTTP " + response.status);
+          }
+
+          return response.json();
+        })
+        .then(pintar)
+        .catch(function () {
+          setStatus("Ruta no disponible.");
+          showAlert("No se pudo consultar la ruta. La donación registrada sigue siendo válida.");
+        });
+
+      window.addEventListener("resize", function () {
+        leafletMap.invalidateSize();
+      });
+
+      window.setTimeout(function () {
+        leafletMap.invalidateSize();
+      }, 250);
     });
   }
 
@@ -122,7 +496,7 @@
       const layout = select("[data-directory-layout]", directory);
       const cards = selectAll("[data-comedor]", directory);
       const viewButtons = selectAll("[data-view]", directory);
-      const pins = selectAll(".rs-pin", directory);
+      const pins = selectAll("[data-map-pin]", directory);
 
       const sync = function () {
         const term = (search ? search.value : "").trim().toLowerCase();
@@ -181,6 +555,13 @@
           if (layout) {
             layout.classList.remove("view-map", "view-list", "view-split");
             layout.classList.add("view-" + view);
+
+            const map = select("[data-directory-map]", directory);
+            if (map && map._rescautaLeafletMap) {
+              window.setTimeout(function () {
+                map._rescautaLeafletMap.invalidateSize();
+              }, 50);
+            }
 
             if (view === "map" && window.innerWidth < 1024) {
               const map = select("[data-directory-map]", directory);
@@ -652,6 +1033,8 @@
   document.addEventListener("DOMContentLoaded", function () {
     initNavigation();
     initMaps();
+    initOriginPickers();
+    initRouteMaps();
     initDirectory();
     initChatbot();
     initReveal();

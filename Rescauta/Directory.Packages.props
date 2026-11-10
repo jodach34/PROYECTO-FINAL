@@ -49,6 +49,10 @@
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="$(EfCoreVersion)" />
   </ItemGroup>
 
+  <ItemGroup Label="Infrastructure - Generacion de codigos QR de donacion">
+    <PackageVersion Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Api">
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="8.1.4" />
     <PackageVersion Include="Asp.Versioning.Mvc" Version="8.1.1" />

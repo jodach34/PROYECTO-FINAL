@@ -96,10 +96,6 @@
                         <h2 class="font-display text-base font-extrabold tracking-[-0.02em]">Detalle de tu aporte</h2>
                         <dl class="mt-4 grid grid-cols-2 gap-2.5 text-[0.76rem]">
                             <div class="rounded-xl bg-[#f5f7f4] p-3.5">
-                                <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Donante</dt>
-                                <dd class="mt-1 font-extrabold">@donacion.Donante</dd>
-                            </div>
-                            <div class="rounded-xl bg-[#f5f7f4] p-3.5">
                                 <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Comedor destino</dt>
                                 <dd class="mt-1 font-extrabold">@donacion.ComedorNombre</dd>
                             </div>
@@ -111,28 +107,7 @@
                                 <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Cantidad</dt>
                                 <dd class="mt-1 font-extrabold">@donacion.Cantidad @donacion.UnidadMedida</dd>
                             </div>
-                            <div class="col-span-2 rounded-xl border border-[#dce7df] bg-[#fbfdfb] p-3.5">
-                                <dt class="text-[0.6rem] font-black uppercase tracking-[0.11em] text-[#5f6f66]">Stock actual del insumo</dt>
-                                <dd class="mt-1 font-extrabold">
-                                    @donacion.StockResultante.ToString("0.##") @donacion.UnidadMedida
-                                    <span class="text-[0.68rem] font-semibold text-[#5f6f66]">en la despensa del comedor</span>
-                                </dd>
-                                <p class="mt-1 text-[0.64rem] font-semibold text-[#5f6f66]">La donación suma stock cuando la coordinación confirma la recepción.</p>
-                            </div>
                         </dl>
-
-                        @if (!string.IsNullOrWhiteSpace(donacion.MotivoCierre))
-                        {
-                            <div class="rs-alert rs-alert--warn mt-3" role="note">
-                                <span>
-                                    <strong>Motivo de cierre.</strong> @donacion.MotivoCierre
-                                    @if (donacion.FechaCierre is not null)
-                                    {
-                                        <span class="block text-[0.68rem] font-semibold">@donacion.FechaCierre.Value.ToLocalTime().ToString("dd/MM/yyyy 'a las' HH:mm")</span>
-                                    }
-                                </span>
-                            </div>
-                        }
                     </div>
 
                     <div>
@@ -174,6 +149,25 @@
                     </div>
                 </div>
             </div>
+
+            <div class="mx-auto mt-4 max-w-4xl">
+                @await Html.PartialAsync("_QrDonacion", new QrDonacionViewModel
+                {
+                    Codigo = donacion.CodigoSeguimiento,
+                    DataUri = donacion.QrDataUri,
+                    SeguimientoUrl = Url.Action("Index", "Seguimiento", new { codigo = donacion.CodigoSeguimiento }, Context.Request.Scheme)
+                })
+            </div>
+
+            @if (!esCerrada)
+            {
+                <div class="mx-auto mt-4 max-w-4xl">
+                    @await Html.PartialAsync("_MapaRutaDonacion", new RutaDonacionMapaViewModel
+                    {
+                        Endpoint = Url.Action("Ruta", "Seguimiento", new { codigo = donacion.CodigoSeguimiento }) ?? string.Empty
+                    })
+                </div>
+            }
         }
         else if (Model.Error is null)
         {

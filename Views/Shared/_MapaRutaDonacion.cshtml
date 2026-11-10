@@ -1,0 +1,23 @@
+@model RutaDonacionMapaViewModel
+@{
+    var endpoint = Model.Endpoint;
+}
+<section class="rs-panel" data-route-panel>
+    <div class="rs-panel__head">
+        <div>
+            <h2 class="rs-panel__title">Ruta de transporte</h2>
+            <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Trazado por carretera entre el punto de recogida y el comedor destino, calculado con OSRM.</p>
+        </div>
+        <span class="rs-badge rs-badge--brand">OSRM</span>
+    </div>
+    <div class="rs-panel__body">
+        <div class="rs-alert rs-alert--warn mb-3" data-route-alert role="status" hidden></div>
+
+        <div class="rs-map rs-map--compact" data-route-map data-route-endpoint="@endpoint">
+            <div class="rs-map__viewport">
+                <div class="rs-map__canvas" data-route-canvas role="application" aria-label="Mapa de la ruta entre el origen de la donación y el comedor destino"></div>
+            </div>
+            <p class="rs-map__note" data-route-status role="status">Ruta no disponible.</p>
+        </div>
+    </div>
+</section>

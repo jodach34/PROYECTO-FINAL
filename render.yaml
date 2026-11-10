@@ -31,6 +31,10 @@
 # (El nombre del host lo decide Render en el primer despliegue. Se puede copiar desde
 # la pagina del servicio rescauta-api.)
 #
+# En rescauta-api, la variable Qr__SeguimientoBaseUrl. Tambien "sync: false": hay que
+# poner la URL publica del MVC que abre el QR, algo como
+# https://rescauta-mvc.onrender.com/Seguimiento. Si falta, la API no arranca.
+#
 # -----------------------------------------------------------------------------
 # SOBRE SQLITE Y LA PERSISTENCIA - LEER ANTES DE QUEJARSE
 #
@@ -80,6 +84,9 @@ services:
         value: Data Source=/app/data/rescauta.db
       - key: Database__MigrateOnStartup
         value: "true"
+      # URL publica del MVC que abre el QR. Render la pide al desplegar.
+      - key: Qr__SeguimientoBaseUrl
+        sync: false
 
     disk:
       name: rescauta-data
