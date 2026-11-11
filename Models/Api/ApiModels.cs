@@ -205,6 +205,29 @@ public sealed class DonacionHistorialApi
     public DateTimeOffset Fecha { get; set; }
 }
 
+/// <summary>
+/// Totales del reporte de donaciones recibidas que calcula la API. El alcance (toda la
+/// red o solo los comedores asignados) lo resuelve la API con los claims del token.
+/// </summary>
+public sealed class ReporteDonacionesRecibidas
+{
+    /// <summary>Donaciones confirmadas, en transito o entregadas.</summary>
+    public int TotalDonaciones { get; set; }
+
+    /// <summary>Suma de las cantidades donadas, en las unidades de cada insumo.</summary>
+    public decimal TotalCantidad { get; set; }
+}
+
+/// <summary>Fila del reporte de stock: insumo, unidad y total disponible en el alcance.</summary>
+public sealed class ReporteStockInsumo
+{
+    public string Insumo { get; set; } = string.Empty;
+
+    public string UnidadMedida { get; set; } = string.Empty;
+
+    public decimal StockDisponible { get; set; }
+}
+
 public sealed class MotivoDonacionRequest
 {
     public string Motivo { get; set; } = string.Empty;

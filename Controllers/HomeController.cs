@@ -41,7 +41,7 @@ public class HomeController(RescautaApiClient api) : Controller
         return View();
     }
 
-    [Route("Donaciones")]
+    [Route("Donar")]
     public IActionResult Donaciones()
     {
         ViewData["Title"] = "Donaciones";

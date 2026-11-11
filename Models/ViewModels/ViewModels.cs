@@ -245,6 +245,64 @@ public sealed record DonacionDetalleViewModel
     public string? Exito { get; init; }
 }
 
+/// <summary>
+/// Reportes del panel: indicadores de donaciones recibidas y stock disponible mas el
+/// detalle filtrado de donaciones.
+///
+/// Los indicadores vienen de los endpoints de reportes de la API, que ya resuelven el
+/// alcance del usuario (Administrador: toda la red; Operador y Coordinador: sus
+/// comedores asignados). El detalle reusa el listado de gestion, el unico endpoint que
+/// soporta filtro por comedor y por rango de fechas, por eso las fechas viajan como
+/// texto "yyyy-MM-dd": es el formato que escribe el input type="date" del formulario.
+/// </summary>
+public sealed record ReportesViewModel
+{
+    /// <summary>Totales de donaciones recibidas. Null si la API no respondio.</summary>
+    public ReporteDonacionesRecibidas? DonacionesRecibidas { get; init; }
+
+    /// <summary>Stock por insumo y unidad. Null si la API no respondio.</summary>
+    public IReadOnlyList<ReporteStockInsumo>? StockDisponible { get; init; }
+
+    /// <summary>Pagina actual del detalle de donaciones.</summary>
+    public IReadOnlyList<DonacionRegistrada> Donaciones { get; init; } = [];
+
+    /// <summary>Comedores que el usuario puede elegir para filtrar el detalle.</summary>
+    public IReadOnlyList<ComedorResumen> Comedores { get; init; } = [];
+
+    public Guid? ComedorId { get; init; }
+
+    /// <summary>Fecha inicial del filtro, tal como se escribio (yyyy-MM-dd).</summary>
+    public string? Desde { get; init; }
+
+    /// <summary>Fecha final del filtro, tal como se escribio (yyyy-MM-dd).</summary>
+    public string? Hasta { get; init; }
+
+    public int Pagina { get; init; } = 1;
+
+    public int TotalCount { get; init; }
+
+    public int TotalPages { get; init; }
+
+    public bool HasPrevious { get; init; }
+
+    public bool HasNext { get; init; }
+
+    /// <summary>Error de los indicadores y del stock (o de un filtro invalido).</summary>
+    public string? Error { get; init; }
+
+    /// <summary>Error propio del detalle de donaciones.</summary>
+    public string? ErrorListado { get; init; }
+
+    /// <summary>Insumos distintos con stock en el alcance del usuario. Null si no se pudo consultar.</summary>
+    public int? TotalInsumos => StockDisponible?.Count;
+
+    /// <summary>Verdadero si el detalle se esta mostrando con algun filtro aplicado.</summary>
+    public bool TieneFiltros =>
+        ComedorId is not null ||
+        !string.IsNullOrWhiteSpace(Desde) ||
+        !string.IsNullOrWhiteSpace(Hasta);
+}
+
 /// <summary>Ficha publica de un comedor, con su inventario actual.</summary>
 public sealed record ComedorDetalleViewModel
 {

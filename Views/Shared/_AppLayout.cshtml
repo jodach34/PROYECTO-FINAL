@@ -10,6 +10,7 @@
     var isTracking = path.StartsWith("/Seguimiento", StringComparison.OrdinalIgnoreCase);
     var isAccount = path.StartsWith("/Cuenta", StringComparison.OrdinalIgnoreCase);
     var isAdmin = path.StartsWith("/AdminUsuarios", StringComparison.OrdinalIgnoreCase);
+    var isReportes = path.StartsWith("/Reportes", StringComparison.OrdinalIgnoreCase);
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -104,15 +105,17 @@
                             Inventario
                         </a>
                     }
-                    <span class="rs-sidebar__link is-disabled" aria-disabled="true">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M4 19V5" />
-                            <path d="M4 19h16" />
-                            <path d="m7 15 4-4 3 2 5-6" />
-                        </svg>
-                        Reportes
-                        <span class="rs-sidebar__soon">pronto</span>
-                    </span>
+                    @if (User.IsInRole("Operador") || User.IsInRole("Coordinador") || User.IsInRole("Administrador"))
+                    {
+                        <a class="rs-sidebar__link @(isReportes ? "is-active" : null)" asp-controller="Reportes" asp-action="Index">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M4 19V5" />
+                                <path d="M4 19h16" />
+                                <path d="m7 15 4-4 3 2 5-6" />
+                            </svg>
+                            Reportes
+                        </a>
+                    }
                 </nav>
             </div>
 

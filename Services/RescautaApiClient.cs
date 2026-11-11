@@ -263,6 +263,25 @@ public sealed class RescautaApiClient(
             cancellationToken);
     }
 
+    // Reportes: los totales los calcula la API y el alcance (toda la red o solo los
+    // comedores asignados) lo resuelve ella misma con los claims del token, asi que
+    // estos endpoints no reciben filtros.
+    public async Task<Result<ReporteDonacionesRecibidas>> ObtenerReporteDonacionesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<ReporteDonacionesRecibidas>(
+            "/api/v1/reportes/donaciones-recibidas",
+            cancellationToken);
+    }
+
+    public async Task<Result<IReadOnlyList<ReporteStockInsumo>>> ObtenerReporteStockAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<IReadOnlyList<ReporteStockInsumo>>(
+            "/api/v1/reportes/stock-disponible",
+            cancellationToken);
+    }
+
     public async Task<Result<LoginResponse>> LoginAsync(
         LoginRequest request,
         CancellationToken cancellationToken = default)
