@@ -186,7 +186,7 @@ public sealed class DonacionService(
 
         var filas = await consulta
             .OrderByDescending(d => d.FechaDonacionUtc)
-            .ThenByDescending(d => d.CreatedAt)
+            .ThenByDescending(d => d.CodigoSeguimiento)
             .Take(limite)
             .ToListAsync(cancellationToken);
 
@@ -218,7 +218,7 @@ public sealed class DonacionService(
             .AsNoTracking()
             .Where(d => !d.IsDeleted && d.UsuarioId == usuarioId)
             .OrderByDescending(d => d.FechaDonacionUtc)
-            .ThenByDescending(d => d.CreatedAt)
+            .ThenByDescending(d => d.CodigoSeguimiento)
             .Take(limite)
             .ToListAsync(cancellationToken);
 
@@ -353,7 +353,7 @@ public sealed class DonacionService(
 
         var filas = await consulta
             .OrderByDescending(d => d.FechaDonacionUtc)
-            .ThenByDescending(d => d.CreatedAt)
+            .ThenByDescending(d => d.CodigoSeguimiento)
             .Skip((filtro.Pagina - 1) * filtro.TamanoPagina)
             .Take(filtro.TamanoPagina)
             .ToListAsync(cancellationToken);

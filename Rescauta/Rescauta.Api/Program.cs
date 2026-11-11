@@ -4,6 +4,7 @@ using System.Threading.RateLimiting;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -77,6 +78,34 @@ if (!builder.Environment.IsDevelopment())
             "Qr:SeguimientoBaseUrl debe ser una URL absoluta publica del MVC, no localhost. " +
             "Ejemplo: https://rescauta-mvc.onrender.com/Seguimiento");
     }
+}
+
+// La recuperacion de contrasena no puede generar enlaces a localhost en produccion:
+// el correo llegaria con una URL que solo existe dentro del contenedor. Se valida al
+// arrancar para que el fallo aparezca en el log del despliegue, no en el buzon.
+var resetPasswordUrl = builder.Configuration["Auth:ResetPasswordUrl"]?.Trim();
+
+if (builder.Environment.IsProduction() &&
+    (!Uri.TryCreate(resetPasswordUrl, UriKind.Absolute, out var resetUri) ||
+     resetUri.IsLoopback ||
+     (resetUri.Scheme != Uri.UriSchemeHttp && resetUri.Scheme != Uri.UriSchemeHttps)))
+{
+    throw new InvalidOperationException(
+        "Auth:ResetPasswordUrl debe ser la URL publica del MVC que restablece la contrasena, " +
+        "no localhost. Ejemplo: https://rescauta-mvc.onrender.com/Cuenta/RestablecerPassword");
+}
+
+// La clave interna permite que la API confie en la IP que le reenvia el MVC. En
+// produccion no hay modo degradado: si falta o es demasiado corta, la API no arranca.
+// El valor nunca se escribe en los logs.
+var internalApiKey = builder.Configuration["Internal:ApiKey"];
+
+if (builder.Environment.IsProduction() &&
+    (string.IsNullOrWhiteSpace(internalApiKey) || internalApiKey.Trim().Length < 32))
+{
+    throw new InvalidOperationException(
+        "Internal:ApiKey es obligatoria en produccion y debe tener al menos 32 caracteres. " +
+        "Debe coincidir exactamente con Internal__ApiKey del MVC. El valor no se registra en logs.");
 }
 
 // -----------------------------------------------------------------------------
@@ -219,12 +248,27 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddFixedWindowLimiter("auth", limiter =>
+
+    // Login, registro y recuperacion: 10 solicitudes por minuto y por IP. El limitador
+    // NO es global: si se usara una sola ventana, un usuario agotaria el cupo de todos.
+    // La IP ya viene resuelta por ClientIpMiddleware (MVC -> clave interna, o Cloudflare).
+    options.AddPolicy("auth", httpContext =>
     {
-        limiter.PermitLimit = 10;
-        limiter.Window = TimeSpan.FromMinutes(1);
-        limiter.QueueLimit = 0;
-        limiter.AutoReplenishment = true;
+        var remoteIp = httpContext.Connection.RemoteIpAddress;
+
+        var partitionKey = remoteIp is null
+            ? "desconocida"
+            : remoteIp.ToString();
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
     });
 
     // Chatbot documental público: 10 solicitudes por minuto y por IP.
@@ -317,6 +361,31 @@ var app = builder.Build();
 // -----------------------------------------------------------------------------
 // 9. Middleware.
 // -----------------------------------------------------------------------------
+
+// Render termina el TLS en su proxy. Solo se acepta X-Forwarded-Proto desde loopback
+// o desde las redes de Proxy:TrustedNetworks (por defecto, privadas IPv4 y ULA/link-local
+// IPv6), nunca desde cualquier origen.
+var forwardedHeaders = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedProto,
+    ForwardLimit = 1
+};
+
+forwardedHeaders.KnownIPNetworks.Clear();
+forwardedHeaders.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("127.0.0.0/8"));
+forwardedHeaders.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("::1/128"));
+
+foreach (var red in TrustedProxyIp.LeerRedesConfianza(builder.Configuration))
+{
+    forwardedHeaders.KnownIPNetworks.Add(red);
+}
+
+app.UseForwardedHeaders(forwardedHeaders);
+
+// Resuelve la IP real antes de UseRateLimiter y de que AuthController registre la
+// sesion. Sin esto, detras de Render todos los usuarios compartirian el cupo del proxy.
+app.UseMiddleware<ClientIpMiddleware>();
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
@@ -379,9 +448,15 @@ app.MapHub<RescautaHub>(hubRoute);
 // La decision ahora la toma Database:MigrateOnStartup, no el entorno: asi el mismo
 // codigo sirve para el SQLite recien bajado de desarrollo y para el despliegue, y basta
 // poner MigrateOnStartup en false para arrancar contra una base ya provisionada.
-// ApplyPendingMigrationsAsync no lanza: si la base no responde, avisa por log y sigue.
+// En produccion ApplyPendingMigrationsAsync falla rapido: si la base no responde o
+// falta el esquema, Render marca el despliegue como fallido en vez de dejar la API viva.
+// Los datos demo solo se siembran en Development. En produccion, si no hay ninguna
+// cuenta administradora y no se configuro la semilla, el arranque tambien falla.
 // -----------------------------------------------------------------------------
-await app.Services.ApplyPendingMigrationsAsync();
+await app.Services.ApplyPendingMigrationsAsync(
+    failFast: app.Environment.IsProduction(),
+    seedDemoData: app.Environment.IsDevelopment(),
+    requireAdmin: app.Environment.IsProduction());
 
 Log.Information("Rescauta API iniciada. Entorno: {Environment} | Hub: {HubRoute}", app.Environment.EnvironmentName, hubRoute);
 

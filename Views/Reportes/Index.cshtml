@@ -1,0 +1,283 @@
+@model ReportesViewModel
+@{
+    Layout = "_AppLayout";
+    ViewData["Title"] = "Reportes";
+    ViewData["AppSection"] = "Reportes";
+    ViewData["AppTitle"] = "Donaciones y stock disponible";
+
+    var esAdmin = User.IsInRole("Administrador");
+}
+
+<div class="rs-page-head">
+    <div>
+        <p class="rs-eyebrow">Operación</p>
+        <h1 class="rs-page-title">La red, en números.</h1>
+        <p class="rs-page-subtitle">
+            @(esAdmin
+                ? "Donaciones recibidas y stock disponible de toda la red de comedores."
+                : "Donaciones recibidas y stock disponible de los comedores que tienes asignados.")
+        </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+        <a class="rs-btn rs-btn--secondary" asp-controller="Donaciones" asp-action="Index">Gestionar donaciones</a>
+        <a class="rs-btn rs-btn--secondary" asp-controller="ControlPanel" asp-action="Index">Volver al panel</a>
+    </div>
+</div>
+
+@if (Model.Error is not null)
+{
+    <div class="rs-alert rs-alert--warn mb-4" role="alert">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+            <path d="M10.3 4.7 2.9 18a1.7 1.7 0 0 0 1.5 2.5h15.2a1.7 1.7 0 0 0 1.5-2.5L13.7 4.7a1.9 1.9 0 0 0-3.4 0Z" />
+        </svg>
+        <span><strong>No se pudo cargar toda la información.</strong> @Model.Error</span>
+    </div>
+}
+
+<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <article class="rs-kpi">
+        <p class="rs-kpi__label">Donaciones recibidas</p>
+        <p class="rs-kpi__value">@(Model.DonacionesRecibidas is null ? "—" : Model.DonacionesRecibidas.TotalDonaciones.ToString("N0"))</p>
+        <p class="rs-kpi__note">@(Model.DonacionesRecibidas is null
+            ? "No se pudo consultar este indicador."
+            : "Confirmadas, en tránsito o entregadas.")</p>
+    </article>
+    <article class="rs-kpi">
+        <p class="rs-kpi__label">Cantidad total recibida</p>
+        <p class="rs-kpi__value">@(Model.DonacionesRecibidas is null ? "—" : Model.DonacionesRecibidas.TotalCantidad.ToString("N0"))</p>
+        <p class="rs-kpi__note">@(Model.DonacionesRecibidas is null
+            ? "No se pudo consultar este indicador."
+            : "Suma las cantidades en la unidad de cada insumo.")</p>
+    </article>
+    <article class="rs-kpi">
+        <p class="rs-kpi__label">Insumos con stock</p>
+        <p class="rs-kpi__value">@(Model.TotalInsumos is null ? "—" : Model.TotalInsumos.Value.ToString("N0"))</p>
+        <p class="rs-kpi__note">@(Model.TotalInsumos is null
+            ? "No se pudo consultar este indicador."
+            : "Agrupados por insumo y unidad de medida.")</p>
+    </article>
+</div>
+
+<section class="rs-panel mt-4">
+    <div class="rs-panel__head">
+        <div>
+            <h2 class="rs-panel__title">Filtros del detalle</h2>
+            <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Los indicadores siempre reflejan tu alcance completo; el detalle de donaciones admite filtros.</p>
+        </div>
+        @if (Model.TieneFiltros)
+        {
+            <span class="rs-badge rs-badge--brand">Filtros activos</span>
+        }
+    </div>
+    <div class="rs-panel__body">
+        <form method="get" asp-controller="Reportes" asp-action="Index" class="grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-end" id="FiltroReportes">
+            <div>
+                <label class="rs-label" for="comedorId">Comedor</label>
+                <select class="rs-select" id="comedorId" name="comedorId">
+                    <option value="" selected="@(Model.ComedorId is null)">Todos los que puedo ver</option>
+                    @foreach (var comedor in Model.Comedores.OrderBy(c => c.Nombre))
+                    {
+                        <option value="@comedor.Id" selected="@(Model.ComedorId == comedor.Id)">@comedor.Nombre</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="rs-label" for="desde">Desde</label>
+                <input class="rs-input" id="desde" name="desde" type="date" value="@Model.Desde" />
+            </div>
+            <div>
+                <label class="rs-label" for="hasta">Hasta</label>
+                <input class="rs-input" id="hasta" name="hasta" type="date" value="@Model.Hasta" />
+            </div>
+            <div class="flex gap-2">
+                <button class="rs-btn rs-btn--primary" type="submit">Filtrar</button>
+                <a class="rs-btn rs-btn--ghost" asp-action="Index">Limpiar</a>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="rs-panel mt-4">
+    <div class="rs-panel__head">
+        <div>
+            <h2 class="rs-panel__title">Donaciones recibidas</h2>
+            <p class="mt-1 text-[0.7rem] text-[#5f6f66]">@Model.TotalCount registro(s) encontrados, del más reciente al más antiguo.</p>
+        </div>
+        <span class="rs-badge rs-badge--neutral">Página @Model.Pagina de @(Model.TotalPages == 0 ? 1 : Model.TotalPages)</span>
+    </div>
+
+    @if (Model.ErrorListado is not null)
+    {
+        <div class="rs-alert rs-alert--error m-4" role="alert">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0">
+                <path d="M12 9v4" />
+                <path d="M12 17h.01" />
+                <path d="M10.3 4.7 2.9 18a1.7 1.7 0 0 0 1.5 2.5h15.2a1.7 1.7 0 0 0 1.5-2.5L13.7 4.7a1.9 1.9 0 0 0-3.4 0Z" />
+            </svg>
+            <span><strong>No se pudo cargar el detalle de donaciones.</strong> @Model.ErrorListado</span>
+        </div>
+    }
+
+    @if (Model.Donaciones.Count == 0)
+    {
+        <div class="rs-empty m-4">
+            <span class="rs-empty__icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 6h13" />
+                    <path d="M8 12h13" />
+                    <path d="M8 18h13" />
+                    <path d="M3 6h.01" />
+                    <path d="M3 12h.01" />
+                    <path d="M3 18h.01" />
+                </svg>
+            </span>
+            <h3>@(Model.TieneFiltros ? "Ninguna donación coincide" : "Sin donaciones registradas")</h3>
+            <p>@(Model.TieneFiltros
+                ? "Prueba con otro comedor o con un rango de fechas más amplio."
+                : "Cuando se registren donaciones en tu alcance aparecerán aquí.")</p>
+        </div>
+    }
+    else
+    {
+        <div class="rs-table-wrap m-4">
+            <table class="rs-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Código</th>
+                        <th>Donante</th>
+                        <th>Comedor / insumo</th>
+                        <th>Cantidad</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var donacion in Model.Donaciones)
+                    {
+                        <tr>
+                            <td class="whitespace-nowrap text-[0.68rem] text-[#5f6f66]">@donacion.FechaDonacion.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                            <td class="whitespace-nowrap">
+                                <a class="rs-mono text-[0.68rem] font-bold text-[#1b6b4a] hover:underline" asp-controller="Donaciones" asp-action="Detalle" asp-route-id="@donacion.DonacionId">@donacion.CodigoSeguimiento</a>
+                            </td>
+                            <td>@donacion.Donante</td>
+                            <td>
+                                <span class="block font-bold">@donacion.ComedorNombre</span>
+                                <span class="block text-[0.66rem] text-[#5f6f66]">@donacion.InsumoNombre</span>
+                            </td>
+                            <td class="whitespace-nowrap font-extrabold text-[#2b8a5b]">@donacion.Cantidad @donacion.UnidadMedida</td>
+                            <td><span class="@Presentacion.ClaseEstadoDonacion(donacion.Estado)">@Presentacion.EtiquetaEstadoDonacion(donacion.Estado)</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 border-t border-[#dce7df] px-4 py-3">
+            <p class="text-[0.68rem] text-[#5f6f66]">Mostrando @Model.Donaciones.Count de @Model.TotalCount.</p>
+            <div class="flex gap-2">
+                @if (Model.HasPrevious)
+                {
+                    <a class="rs-btn rs-btn--secondary rs-btn--sm" asp-action="Index" asp-route-comedorId="@Model.ComedorId" asp-route-desde="@Model.Desde" asp-route-hasta="@Model.Hasta" asp-route-pagina="@(Model.Pagina - 1)">Anterior</a>
+                }
+                @if (Model.HasNext)
+                {
+                    <a class="rs-btn rs-btn--secondary rs-btn--sm" asp-action="Index" asp-route-comedorId="@Model.ComedorId" asp-route-desde="@Model.Desde" asp-route-hasta="@Model.Hasta" asp-route-pagina="@(Model.Pagina + 1)">Siguiente</a>
+                }
+            </div>
+        </div>
+    }
+</section>
+
+<section class="rs-panel mt-4">
+    <div class="rs-panel__head">
+        <div>
+            <h2 class="rs-panel__title">Stock disponible</h2>
+            <p class="mt-1 text-[0.7rem] text-[#5f6f66]">Insumos en las despensas de tu alcance, sumados por nombre y unidad, ordenados alfabéticamente.</p>
+        </div>
+        @if (Model.StockDisponible is not null)
+        {
+            <span class="rs-badge rs-badge--neutral">@Model.StockDisponible.Count insumos</span>
+        }
+    </div>
+
+    @if (Model.StockDisponible is null)
+    {
+        <div class="rs-empty m-4">
+            <span class="rs-empty__icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 7h18" />
+                    <path d="M6 7v13h12V7" />
+                    <path d="M9 7V4h6v3" />
+                </svg>
+            </span>
+            <h3>No se pudo consultar el stock</h3>
+            <p>Revisa el aviso superior; la información vuelve cuando la API responda.</p>
+        </div>
+    }
+    else if (Model.StockDisponible.Count == 0)
+    {
+        <div class="rs-empty m-4">
+            <span class="rs-empty__icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 7h18" />
+                    <path d="M6 7v13h12V7" />
+                    <path d="M9 7V4h6v3" />
+                </svg>
+            </span>
+            <h3>Sin insumos con stock</h3>
+            <p>Todavía no hay insumos registrados en las despensas de tu alcance.</p>
+        </div>
+    }
+    else
+    {
+        <div class="rs-table-wrap m-4">
+            <table class="rs-table">
+                <thead>
+                    <tr>
+                        <th>Insumo</th>
+                        <th>Unidad</th>
+                        <th class="text-right">Stock disponible</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var fila in Model.StockDisponible)
+                    {
+                        var agotado = fila.StockDisponible <= 0m;
+                        <tr>
+                            <td class="font-bold text-[#13251c]">@fila.Insumo</td>
+                            <td class="text-[#5f6f66]">@fila.UnidadMedida</td>
+                            <td class="whitespace-nowrap text-right">
+                                <span class="font-extrabold @(agotado ? "text-[#b33a48]" : "text-[#13251c]")">@fila.StockDisponible.ToString("0.##")</span>
+                                @if (agotado)
+                                {
+                                    <span class="rs-badge rs-badge--critico ml-1">Agotado</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@section Scripts {
+    <script>
+        (() => {
+            const formulario = document.getElementById('FiltroReportes');
+            const boton = formulario?.querySelector("button[type='submit']");
+
+            if (!formulario || !boton) {
+                return;
+            }
+
+            formulario.addEventListener('submit', () => {
+                boton.disabled = true;
+                boton.setAttribute('aria-busy', 'true');
+                boton.textContent = 'Cargando...';
+            });
+        })();
+    </script>
+}
