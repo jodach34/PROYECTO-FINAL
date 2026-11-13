@@ -4,9 +4,9 @@
 # Que servicio de Render lo usa: "rescauta-mvc" (ver render.yaml, runtime: docker).
 # El otro servicio, "rescauta-api", usa el Dockerfile de la raiz.
 #
-# Contexto de build: la RAIZ del repositorio. En render.yaml eso es dockerContext: ..
-# (o ".", que es lo mismo: la raiz), y es OBLIGATORIO que sea la raiz y no esta
-# carpeta, porque el .csproj de la raiz tiene los globs de compilacion en **/*.cs.
+# Contexto de build: la RAIZ del repositorio. En render.yaml eso es dockerContext: .
+# y es OBLIGATORIO que sea la raiz y no esta carpeta, porque el .csproj de la raiz
+# tiene los globs de compilacion en **/*.cs.
 #
 # -----------------------------------------------------------------------------
 # POR QUE HACE FALTA UN SEGUNDO DOCKERFILE

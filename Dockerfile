@@ -68,9 +68,11 @@ WORKDIR /app
 COPY --from=build /app/publish ./
 
 # --- Entrypoint -----------------------------------------------------------------
-# En Render el disco persistente se monta en /app/data en tiempo de ejecucion y tapa
-# el directorio de la imagen, incluido el chown de build. El script arranca como root,
-# hace chown de /app/data y baja a $APP_UID antes de ejecutar la API.
+# /app/data se crea en la imagen, pero el entrypoint vuelve a prepararla al arrancar
+# (mkdir + chown) y comprueba que el UID sin privilegios puede escribir. Asi funciona
+# igual con o sin volumen: en Render Free no hay disco persistente y la ruta sigue
+# siendo escribible dentro del contenedor. El script arranca como root, prepara la
+# carpeta y baja a $APP_UID antes de ejecutar la API.
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
@@ -90,17 +92,15 @@ RUN for tool in \
     done
 
 # --- Carpeta de la base de datos ---------------------------------------------
-# SQLite es UN ARCHIVO y debe vivir en /app/data. En Render esa ruta es un disco
-# persistente; el mkdir/chown de build sirve para ejecuciones locales sin volumen,
-# pero el volumen montado puede ser root-owned y ocultar este directorio. Por eso el
-# entrypoint repite el chown al arrancar antes de bajar a $APP_UID.
+# SQLite es UN ARCHIVO y debe vivir en una ruta escribible. /app/data se crea aqui
+# con permisos para $APP_UID; el entrypoint lo vuelve a preparar al arrancar porque
+# un volumen montado (si algun dia se usa) puede ser root-owned.
 RUN mkdir -p /app/data && chown -R $APP_UID:$APP_UID /app/data
 
 # --- Base de datos por defecto ------------------------------------------------
-# La API usa SQLite en /app/data/rescauta.db. En Render, /app/data es el punto de
-# montaje del disco persistente de 1 GB declarado en render.yaml; asi el archivo
-# sobrevive a reinicios y despliegues. Sin disco, la ruta sigue funcionando pero el
-# archivo es efimero.
+# La API usa SQLite en /app/data/rescauta.db. En Render Free no hay disco
+# persistente: el archivo vive en el sistema de archivos efimero del contenedor y
+# se pierde al redesplegar. La API lo vuelve a crear al arrancar (MigrateOnStartup).
 ENV Database__Provider=Sqlite
 ENV Database__ConnectionString="Data Source=/app/data/rescauta.db"
 

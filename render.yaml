@@ -1,82 +1,43 @@
 # =============================================================================
-# Despliegue en Render.
+# Despliegue en Render - PLAN GRATUITO (dos servicios Docker).
 #
-# -----------------------------------------------------------------------------
+# IMPORTANTE AL CREAR EL BLUEPRINT EN RENDER:
+#   selecciona la rama  fix/render-produccion-p0  en el asistente de Render.
+#   Si se deja la rama por defecto (main), Render lee el render.yaml viejo, que
+#   pide un disco persistente y un plan de pago.
+#
 # POR QUE SON DOS SERVICIOS
+# El proyecto tiene una API (habla con SQLite) y un MVC (la consume por HTTP).
+# Render ejecuta un proceso por servicio web, asi que hacen falta los dos:
 #
-# El proyecto quedo partido en una API (que habla con SQLite) y un MVC (que la consume
-# por HTTP). Render ejecuta UN proceso por servicio web, asi que un solo servicio no
-# alcanza: si solo se despliega el MVC, las pantallas abren pero muestran el aviso "No se
-# pudo contactar a la API".
+#   rescauta-api -> Dockerfile       -> /health y /api/v1/..., crea el esquema al arrancar
+#   rescauta-mvc -> Dockerfile.mvc   -> pagina publica, /healthz, habla con la API
 #
-#   rescauta-api -> Dockerfile       -> expone /health y /api/v1/..., y crea la base al arrancar
-#   rescauta-mvc  -> Dockerfile.mvc   -> puerto publico, es la pagina que se abre
+# POR QUE ESTO FUNCIONA EN FREE
+#   * Ningun servicio usa disco persistente (el plan free no los permite).
+#   * SQLite vive en /app/data/rescauta.db, una ruta escribible del contenedor.
+#     Es EFIMERA: los datos se pierden al redesplegar o reiniciar el servicio.
+#     Al arrancar de nuevo, la API recrea el esquema y la cuenta administradora.
+#   * Cada Dockerfile expande ${PORT} al arrancar, que es el puerto que asigna Render.
 #
-# -----------------------------------------------------------------------------
-# POR QUE AMBOS USAN runtime: docker
+# URLS PUBLICAS
+# Los nombres de servicio de este archivo producen estos hostnames:
+#   https://rescauta-api.onrender.com
+#   https://rescauta-mvc.onrender.com
+# Si Render te obliga a usar otro nombre (porque el hostname ya existe), cambia
+# tambien las tres URLs de abajo.
 #
-# Antes los dos servicios usaban "runtime: dotnet" con buildCommand, mientras un
-# Dockerfile estaba en la raiz del repositorio. Eso es contradictorio: Render detecta
-# un Dockerfile y lo usa en vez del buildCommand, y ademas el unico Dockerfile
-# construia la API, de modo que el servicio "rescauta-mvc" terminaba ejecutando la API.
-# Con "runtime: docker" no hay ambiguedad posible: cada servicio dice que Dockerfile
-# construye, y punto.
+# SECRETOS QUE RENDER PIDE AL CREAR EL BLUEPRINT (sync: false)
+#   Auth__SeedAdminEmail / Auth__SeedAdminPassword -> OBLIGATORIOS. Sin ellos, si
+#     no existe ningun administrador, la API no arranca (fail-fast a proposito).
+#     La contrasena debe tener al menos 8 caracteres e incluir una letra y un numero.
+#   Gemini__ApiKey, Qdrant__Url, Qdrant__ApiKey -> OPCIONALES. Sin ellos la app,
+#     el login, las donaciones y el inventario funcionan; el chatbot responde 503
+#     hasta que se configuren. Se pueden dejar vacios y rellenar despues en el
+#     panel de Render (Environment).
 #
-# -----------------------------------------------------------------------------
-# LO UNICO QUE HAY QUE RELLENAR A MANO
-#
-# En rescauta-mvc, la variable Api__BaseUrl. Esta marcada "sync: false" para que Render
-# la pida en vez de adivinarla: hay que poner la URL publica de rescauta-api, con https
-# y con la barra al final, algo como  https://rescauta-api.onrender.com/
-# (El nombre del host lo decide Render en el primer despliegue. Se puede copiar desde
-# la pagina del servicio rescauta-api.)
-#
-# En rescauta-api, la variable Qr__SeguimientoBaseUrl. Tambien "sync: false": hay que
-# poner la URL publica del MVC que abre el QR, algo como
-# https://rescauta-mvc.onrender.com/Seguimiento. Si falta, la API no arranca.
-#
-# Ademas, para produccion:
-#   - Auth__SeedAdminEmail / Auth__SeedAdminPassword: crean la primera cuenta
-#     administradora. La contrasena debe tener al menos 8 caracteres e incluir una
-#     letra y un numero. Si no existe ningun administrador y faltan ambas variables,
-#     la API no arranca. Una cuenta existente nunca se modifica automaticamente.
-#   - Auth__ResetPasswordUrl: URL publica del MVC para restablecer contrasena.
-#     Sin ella, la API no arranca en produccion porque el valor por defecto es localhost.
-#   - Internal__ApiKey: el MISMO valor secreto en rescauta-api y rescauta-mvc, con un
-#     minimo de 32 caracteres. Sin ella, ambos servicios no arrancan en produccion.
-#     Permite que la API confie en la IP real que le reenvia el MVC para el rate limiting.
-#     Si los valores no coinciden, la API rechaza las solicitudes del MVC con 401.
-#     La clave nunca se escribe en los logs.
-#
-# Los datos demo de DatosSemilla solo se siembran en Development. En produccion no se
-# crean comedores ni movimientos ficticios.
-#
-# Opcionales (se pueden anadir a mano en el panel de Render; no bloquean el arranque):
-#   - Proxy__TrustedNetworks: CIDR de proxies inmediatos separados por coma. Si se
-#     omite, se confia en loopback y en redes privadas IPv4, ULA IPv6 y link-local IPv6.
-#     En Render se puede restringir al rango exacto del proxy.
-#   - Email__Host, Email__Port, Email__EnableSsl, Email__User, Email__Password,
-#     Email__From, Email__FromName. Sin Email__Host, la recuperacion de contrasena
-#     registra un aviso y no envia correo.
-#   - Gemini__ApiKey: sin ella, el chatbot no puede generar respuestas.
-#   - Qdrant__Url, Qdrant__ApiKey: sin ellas, el chatbot no puede buscar documentos.
-#   - Database__MigrateOnStartup: true en este blueprint. En produccion, un fallo de
-#     migracion detiene el arranque (fail-fast) en vez de dejar la API sin tablas.
-#
-# -----------------------------------------------------------------------------
-# SOBRE SQLITE Y LA PERSISTENCIA - LEER ANTES DE QUEJARSE
-#
-# La API usa SQLite en /app/data/rescauta.db. En Render, /app/data es un disco
-# persistente de 1 GB, asi que usuarios, donaciones y kardex sobreviven a
-# reinicios y redespliegues. El servicio debe estar en un plan de pago: el plan
-# free no permite discos persistentes.
-#
-# El disco obliga a una sola instancia (numInstances: 1). Render no puede escalar
-# un servicio con disco ni hacer despliegues sin downtime: detiene la instancia
-# anterior antes de arrancar la nueva.
-#
-# Aviso adicional: la sesion del MVC esta en memoria, asi que al reiniciar se
-# pierde el comedor seleccionado; las cuentas y datos de SQLite si se conservan.
+# Internal__ApiKey NO se pide a mano: se genera en la API y el MVC la copia con
+# fromService. Debe existir en ambos y el MVC no arranca en produccion sin ella.
 # =============================================================================
 
 services:
@@ -86,54 +47,44 @@ services:
   - type: web
     name: rescauta-api
     runtime: docker
-    # dockerfilePath: el Dockerfile de la raiz, el que construye Rescauta.Api.
     dockerfilePath: ./Dockerfile
-    # dockerContext: la raiz del repositorio, porque el Dockerfile hace
-    # "COPY Rescauta/ ./". Si se dejara el valor por defecto, el contexto seria el
-    # directorio del Dockerfile (la raiz, aqui) y darian igual, pero dejarlo explicito
-    # evita que alguien lo mueva y rompa el COPY sin avisar.
     dockerContext: .
-    plan: starter
-    # Un disco persistente no se puede compartir entre instancias. Fijar 1 evita
-    # que un cambio futuro active escalado horizontal sobre SQLite.
-    numInstances: 1
-    # /health, no /api/v1/system/readiness: ambos devuelven 200/503, pero /health es el
-    # que no depende de la cache. La API crea el esquema ANTES de abrir el puerto, asi
-    # que cuando Render empieza a preguntar el esquema ya esta.
+    plan: free
+    # /health comprueba la base y las tablas esenciales. La API crea el esquema
+    # antes de abrir el puerto, asi que cuando Render empieza a preguntar ya esta.
     healthCheckPath: /health
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
       - key: Database__Provider
         value: Sqlite
-      # El disco se monta en /app/data (ver bloque disk). La cadena debe apuntar
-      # exactamente a esa ruta; si se cambia una, hay que cambiar la otra.
+      # Ruta escribible del contenedor. Sin disco persistente: es efimera.
+      # Si se cambia esta ruta, Dockerfile y docker-entrypoint.sh usan /app/data.
       - key: Database__ConnectionString
         value: Data Source=/app/data/rescauta.db
       - key: Database__MigrateOnStartup
         value: "true"
-      # URL publica del MVC que abre el QR. Render la pide al desplegar.
+      # URL publica del MVC que abre el QR de seguimiento.
       - key: Qr__SeguimientoBaseUrl
-        sync: false
+        value: https://rescauta-mvc.onrender.com/Seguimiento
+      # URL publica del MVC para el enlace de recuperacion de contrasena.
+      - key: Auth__ResetPasswordUrl
+        value: https://rescauta-mvc.onrender.com/Cuenta/RestablecerPassword
       # Primera cuenta administradora. Render pide ambos valores; no se guardan aqui.
-      # Si no existe ningun administrador y faltan, la API no arranca. La contrasena
-      # debe tener al menos 8 caracteres e incluir una letra y un numero.
       - key: Auth__SeedAdminEmail
         sync: false
       - key: Auth__SeedAdminPassword
         sync: false
-      # URL publica del MVC para el enlace de recuperacion. No puede ser localhost.
-      - key: Auth__ResetPasswordUrl
-        sync: false
-      # Secreto compartido con rescauta-mvc, minimo 32 caracteres. Debe ser
-      # exactamente el mismo valor; si no coincide, la API responde 401 al MVC.
+      # Secreto compartido con rescauta-mvc. Se genera una vez y el MVC lo copia.
       - key: Internal__ApiKey
+        generateValue: true
+      # Chatbot (opcionales). Vacio = 503 controlado, no tumba el resto de la app.
+      - key: Gemini__ApiKey
         sync: false
-
-    disk:
-      name: rescauta-data
-      mountPath: /app/data
-      sizeGB: 1
+      - key: Qdrant__Url
+        sync: false
+      - key: Qdrant__ApiKey
+        sync: false
 
   # ---------------------------------------------------------------------------
   # Servicio 2: el MVC. Es la pagina que se abre. No tiene base de datos propia.
@@ -144,22 +95,18 @@ services:
     dockerfilePath: ./Dockerfile.mvc
     dockerContext: .
     plan: free
-    # Health check propio, /healthz, que NO llama a la API a proposito. Si el check
-    # fuera "/" o cualquier pagina, dependeria de que la API este despierta: en el plan
-    # gratis esta se suspende a los 15 minutos, la primera carga de la pagina haria
-    # Cold Start de la API, y si eso tarda mas que el timeout del check, Render daria
-    # el servicio por caido y lo reiniciaria en bucle. Un endpoint que no depende de
-    # nada externo no puede entrar en ese ciclo.
+    # /healthz no llama a la API: evita que el cold start de la API tumbe el
+    # health check del MVC y provoque reinicios en bucle.
     healthCheckPath: /healthz
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
-      # La URL publica de rescauta-api, obligatoriamente con https y con la barra al
-      # final. Render la pide al desplegar. Si se deja mal, el MVC NO arranca y el
-      # motivo aparece en el log de este servicio (ver Program.cs).
+      # URL publica de la API, con https y barra final. Sin esto el MVC no arranca.
       - key: Api__BaseUrl
-        sync: false
-      # Debe coincidir exactamente con Internal__ApiKey de rescauta-api y tener al
-      # menos 32 caracteres. Si falta, el MVC no arranca.
+        value: https://rescauta-api.onrender.com/
+      # Mismo valor que la API. Render lo copia automaticamente.
       - key: Internal__ApiKey
-        sync: false
+        fromService:
+          type: web
+          name: rescauta-api
+          envVarKey: Internal__ApiKey
