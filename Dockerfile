@@ -28,7 +28,7 @@ WORKDIR /src
 # depende de los .csproj, asi que mientras estos no cambien Docker reutiliza la capa
 # cacheada. Si se copiara todo el codigo antes de restaurar, cada cambio de una linea
 # invalidaria el restore y habria que volver a descargar paquetes.
-COPY Rescauta/Directory.Build.props Rescauta/Directory.Packages.props ./
+COPY Rescauta/Directory.Build.props Rescauta/Directory.Packages.props Rescauta/
 COPY Rescauta/Rescauta.sln Rescauta/
 COPY Rescauta/Rescauta.Domain/Rescauta.Domain.csproj Rescauta/Rescauta.Domain/
 COPY Rescauta/Rescauta.Application/Rescauta.Application.csproj Rescauta/Rescauta.Application/
@@ -41,18 +41,18 @@ COPY Rescauta/Rescauta.Tests/Rescauta.Tests.csproj Rescauta/Rescauta.Tests/
 RUN dotnet restore Rescauta/Rescauta.sln
 
 # --- Capa 2: el codigo fuente ------------------------------------------------
-# OJO con la ruta del publish. "COPY Rescauta/ ./" NO copia la CARPETA Rescauta dentro
-# de /src, sino su CONTENIDO: /src/Rescauta.Api/, /src/Directory.Build.props, etc. Por
-# eso el publish usa Rescauta.Api/... y no Rescauta/Rescauta.Api/... . Las dos rutas
-# distintas del mismo fichero, en las dos lineas de arriba y en esta, no son un descuido:
-# el restore de la capa 1 ocurre ANTES del "COPY Rescauta/ ./", cuando la carpeta todavia
-# no existe dentro de /src.
-COPY Rescauta/ ./
+# Se copia DEBAJO de Rescauta/ para conservar la MISMA ruta que en la capa 1. Si
+# aqui se hiciera "COPY Rescauta/ ./", el codigo acabaria en /src/Rescauta.Api/
+# mientras que el restore dejo los assets en /src/Rescauta/Rescauta.Api/obj/.
+# Entonces el publish --no-restore buscaria project.assets.json en una carpeta
+# distinta y fallaria con NETSDK1004. Restore y publish deben ver exactamente las
+# mismas rutas.
+COPY Rescauta/ ./Rescauta/
 
-# --no-restore: el restore ya se hizo arriba y no debe repetirse.
+# --no-restore: el restore ya se hizo arriba sobre las mismas rutas y no debe repetirse.
 # /p:UseAppHost=false: no genera el ejecutable nativo. En Linux se ejecuta la DLL con
 # "dotnet", asi que el apphost solo anadiria peso.
-RUN dotnet publish Rescauta.Api/Rescauta.Api.csproj \
+RUN dotnet publish Rescauta/Rescauta.Api/Rescauta.Api.csproj \
         --configuration Release \
         --no-restore \
         --output /app/publish \
