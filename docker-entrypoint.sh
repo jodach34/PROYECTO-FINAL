@@ -2,14 +2,14 @@
 set -eu
 umask 077
 
+# /app/data se crea y se asigna a APP_UID durante el BUILD de la imagen. En Render
+# Free no hay disco persistente ni privilegios para cambiar propietarios al arrancar,
+# asi que este script YA NO usa setpriv, chown ni chmod: solo comprueba que el
+# usuario no root de la imagen puede escribir y cede el control a la API.
 DATA_DIR="${DATA_DIR:-/app/data}"
 
 ID_BIN=/usr/bin/id
-CHOWN_BIN=/usr/bin/chown
-CHMOD_BIN=/usr/bin/chmod
 FIND_BIN=/usr/bin/find
-MKDIR_BIN=/usr/bin/mkdir
-SETPRIV_BIN=/usr/bin/setpriv
 SH_BIN=/bin/sh
 RM_BIN=/bin/rm
 
@@ -53,87 +53,30 @@ case "$CURRENT_UID" in
         ;;
 esac
 
-APP_UID_NUM=
-APP_GID_NUM=
-
-if [ -n "${APP_UID:-}" ]; then
-    APP_UID_NUM="$("$ID_BIN" -u -- "$APP_UID")" || {
-        echo "ERROR: APP_UID '$APP_UID' no existe o no se pudo resolver" >&2
-        exit 1
-    }
-
-    case "$APP_UID_NUM" in
-        ''|*[!0-9]*)
-            echo "ERROR: APP_UID '$APP_UID' no resolvio a un UID numerico" >&2
-            exit 1
-            ;;
-    esac
-
-    if [ "$APP_UID_NUM" -eq 0 ]; then
-        echo "ERROR: APP_UID no puede ser 0 (root)" >&2
-        exit 1
-    fi
-
-    APP_GID_NUM="$("$ID_BIN" -g -- "$APP_UID")" || {
-        echo "ERROR: no se pudo resolver el GID de APP_UID '$APP_UID'" >&2
-        exit 1
-    }
-
-    case "$APP_GID_NUM" in
-        ''|*[!0-9]*)
-            echo "ERROR: APP_UID '$APP_UID' no resolvio a un GID numerico" >&2
-            exit 1
-            ;;
-    esac
-
-    if [ "$APP_GID_NUM" -eq 0 ]; then
-        echo "ERROR: el GID de APP_UID '$APP_UID' no puede ser 0 (root)" >&2
-        exit 1
-    fi
+# El Dockerfile termina con USER $APP_UID. Si alguien lo cambia a root, no se intenta
+# bajar privilegios (Render Free no lo permite): se falla con una causa explicita.
+if [ "$CURRENT_UID" -eq 0 ]; then
+    echo "ERROR: el contenedor arranco como root; debe ejecutarse con USER \$APP_UID" >&2
+    echo "ERROR: /app/data se prepara en la imagen y no se cambian privilegios al arrancar" >&2
+    exit 1
 fi
 
-if [ "$CURRENT_UID" -eq 0 ]; then
-    if [ -z "${APP_UID:-}" ]; then
-        echo "ERROR: APP_UID no definido" >&2
-        exit 1
-    fi
-
-    "$MKDIR_BIN" -p -- "$DATA_DIR"
-    "$CHOWN_BIN" -R -- "$APP_UID_NUM:$APP_GID_NUM" "$DATA_DIR"
-    "$CHMOD_BIN" 700 -- "$DATA_DIR"
-    "$FIND_BIN" "$DATA_DIR" -maxdepth 1 -type f -name 'rescauta.db*' -exec "$CHMOD_BIN" 600 -- {} +
-
-    if ! "$SETPRIV_BIN" \
-        --reuid="$APP_UID_NUM" \
-        --regid="$APP_GID_NUM" \
-        --clear-groups \
-        --inh-caps=-all \
-        --bounding-set=-all \
-        --no-new-privs \
-        -- "$SH_BIN" -c '
-            f="$1/.write-test.$$"
-            : > "$f"
-            "$2" -f -- "$f"
-        ' sh "$DATA_DIR" "$RM_BIN"
-    then
-        echo "ERROR: el UID $APP_UID_NUM no puede escribir en $DATA_DIR" >&2
-        exit 1
-    fi
-
-    exec "$SETPRIV_BIN" \
-        --reuid="$APP_UID_NUM" \
-        --regid="$APP_GID_NUM" \
-        --clear-groups \
-        --inh-caps=-all \
-        --bounding-set=-all \
-        --no-new-privs \
-        -- "$@"
+if [ ! -d "$DATA_DIR" ]; then
+    echo "ERROR: $DATA_DIR no existe; debe crearse durante el build de la imagen" >&2
+    exit 1
 fi
 
 if [ ! -r "$DATA_DIR" ] || [ ! -w "$DATA_DIR" ] || [ ! -x "$DATA_DIR" ]; then
     echo "ERROR: $DATA_DIR no es legible/escribible/ejecutable por el UID $CURRENT_UID" >&2
     exit 1
 fi
+
+WRITE_TEST="$DATA_DIR/.write-test.$$"
+if ! { : > "$WRITE_TEST"; } 2>/dev/null; then
+    echo "ERROR: el UID $CURRENT_UID no puede escribir en $DATA_DIR" >&2
+    exit 1
+fi
+"$RM_BIN" -f -- "$WRITE_TEST"
 
 "$FIND_BIN" "$DATA_DIR" -maxdepth 1 -type f -name 'rescauta.db*' -exec "$SH_BIN" -c '
     uid="$1"

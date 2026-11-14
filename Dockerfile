@@ -68,34 +68,30 @@ WORKDIR /app
 COPY --from=build /app/publish ./
 
 # --- Entrypoint -----------------------------------------------------------------
-# /app/data se crea en la imagen, pero el entrypoint vuelve a prepararla al arrancar
-# (mkdir + chown) y comprueba que el UID sin privilegios puede escribir. Asi funciona
-# igual con o sin volumen: en Render Free no hay disco persistente y la ruta sigue
-# siendo escribible dentro del contenedor. El script arranca como root, prepara la
-# carpeta y baja a $APP_UID antes de ejecutar la API.
+# El entrypoint ya NO cambia privilegios: Render Free no permite operaciones como
+# setpriv --bounding-set (falla con "Operation not permitted"). Solo valida que el
+# usuario no root de la imagen puede escribir en /app/data y arranca la API.
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# setpriv viene en util-linux, incluido en la imagen Ubuntu de .NET. El entrypoint
-# tambien usa id, chown, chmod, find, mkdir, sh y rm. Si falta cualquiera, el build
-# falla aqui en vez de fallar en produccion al intentar bajar privilegios.
+# Herramientas que usa el entrypoint en tiempo de ejecucion. setpriv ya no aparece a
+# proposito. Si falta alguna, el build falla aqui en vez de fallar en produccion.
 RUN for tool in \
-        /usr/bin/setpriv \
         /usr/bin/id \
-        /usr/bin/chown \
-        /usr/bin/chmod \
         /usr/bin/find \
-        /usr/bin/mkdir \
         /bin/sh \
         /bin/rm; do \
         test -x "$tool" || { echo "ERROR: falta $tool" >&2; exit 1; }; \
     done
 
 # --- Carpeta de la base de datos ---------------------------------------------
-# SQLite es UN ARCHIVO y debe vivir en una ruta escribible. /app/data se crea aqui
-# con permisos para $APP_UID; el entrypoint lo vuelve a preparar al arrancar porque
-# un volumen montado (si algun dia se usa) puede ser root-owned.
-RUN mkdir -p /app/data && chown -R $APP_UID:$APP_UID /app/data
+# SQLite es UN ARCHIVO y debe vivir en una ruta escribible. La carpeta se crea y se
+# asigna a $APP_UID durante el BUILD (aqui si hay privilegios de root). En Render
+# Free no hay disco persistente: esta ruta queda dentro del filesystem efimero del
+# contenedor y el proceso no root puede crear /app/data/rescauta.db directamente.
+RUN mkdir -p /app/data \
+    && chown -R $APP_UID:$APP_UID /app/data \
+    && chmod 700 /app/data
 
 # --- Base de datos por defecto ------------------------------------------------
 # La API usa SQLite en /app/data/rescauta.db. En Render Free no hay disco
@@ -128,10 +124,10 @@ ENV HOME=/home/app
 EXPOSE 8080
 
 # --- Usuario sin privilegios ----------------------------------------------------
-# El contenedor arranca como root SOLO para que el entrypoint pueda hacer chown del
-# disco persistente (Render lo monta root-owned). El entrypoint baja a $APP_UID con
-# setpriv y falla si no puede; la API nunca queda corriendo como root.
-USER root
+# El contenedor arranca directamente como $APP_UID (1654 en la imagen de .NET). No
+# se arranca como root ni se intenta cambiar de usuario: /app/data ya pertenece a
+# $APP_UID desde el build. Render Free ejecuta la imagen con el USER del Dockerfile.
+USER $APP_UID
 
 # El entrypoint recibe el comando como argumentos y lo ejecuta ya como $APP_UID.
 # "exec" hace que .NET sea el PID 1 y reciba SIGTERM de Render.
